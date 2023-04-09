@@ -8,18 +8,13 @@ editor: visual
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(lubridate)
-library(parsnip)
-library(censored)
-library(survival)
-library(ggsurvfit)
 ```
 
 ## TODOs
 
 -   finish demo code for talk
 
-
-## Outline
+## Outline {.smaller}
 
 -   Intro and background about me
 -   Notes about how I present
@@ -39,19 +34,20 @@ library(ggsurvfit)
 -   References
 
 ## Choices
--   How do I want to show naive estimates? I don't think I want to show them in the initial set up. I don't think that has been as intuitive for people. 
-- I'm not sure I want to show median time to churn by month
-- I think I want to show overall probability of survival with censoring and without censoring on the same graph. 
--  Unresolved questions: do I want to show ggsurvfit for making plots? I tend not to do this but it might be an easy way for folks to get started. 
-- Do I want to plot hazards?
-- Do I want to show extracting predictions from a cox surv object?
 
+-   How do I want to show naive estimates? I don't think I want to show them in the initial set up. I don't think that has been as intuitive for people.
+-   I'm not sure I want to show median time to churn by month
+-   I think I want to show overall probability of survival with censoring and without censoring on the same graph.
+-   Unresolved questions: do I want to show ggsurvfit for making plots? I tend not to do this but it might be an easy way for folks to get started.
+-   Do I want to plot hazards?
+-   Do I want to show extracting predictions from a cox surv object?
 
 ## Who are you?
 
 ![](https://media.giphy.com/media/3ohs4lOlH8GhRtb6QU/giphy.gif)
 
 ## I'm Andrea. Hi!
+
 ![](talk_images/sorcinelli_headshot.jpg)
 
 ```{r}
@@ -63,29 +59,33 @@ andrea |>
 
 ## How I present code in talks
 
-There is code in this talk. Don't worry about the details. 
+There is code in this talk. 
 
-*Really.* 
+Don't worry about the details.
+
+*Really.*
 
 ## My goal is for you to leave with an understanding of the following:
 
--   The kinds of situations that call for survival analysis  
--   Why it is important not to treat censored observations as missing  
--   There are different packages for implementing survival analysis in R  
--   An intuition for how survival analysis works   
-
+-   The kinds of situations that call for survival analysis\
+-   Why it is important not to treat censored observations as missing\
+-   There are different packages for implementing survival analysis in R\
+-   An intuition for how survival analysis works
 
 ## Back to how I present code in talks
 
-Don't worry about the specifics of the code. Just try to get the high-level. It's all on GitHub.  
+Don't worry about the specifics of the code.  
 
-There are 4 lines of code that we are going to go through in detail. 
+Focus on the the high-level. It's all on GitHub.  
 
-## Predicting time between sign up and churn
+There are 4 lines of code that we are going to go through in detail.  
 
-Imagine you work for a communication service provider like Xfinity or Verizon. A huge part of your business is going to be focused on understanding renewals. Who keeps their contract and who cancels or churns?  
+## Predicting time between sign up and churn {.smaller}
 
-I am using data from [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) throughout.
+Imagine you work for a communication service provider like Xfinity or Verizon. A big part of your business is going to be focused on understanding renewals.Who keeps their contract and who **cancels their contract or churns**?
+
+
+Data from [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) used throughout.
 
 ## Some customers signed up a long time ago; Others only recently
 
@@ -114,7 +114,6 @@ fake_data %>%
                       labels = c("Signup Date", "Churn Date"),
                       values = c("blue", "red")) +
   scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
-  #theme_wp(base_size = 20) +
   theme(panel.border = element_blank(),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
@@ -123,18 +122,36 @@ fake_data %>%
   labs(x = "Year",
        y = "Customer",
        title = "Time from sign up to churn",
-       subtitle = "We have observed churn for some customers. \nWe have not for others.") +
+       subtitle = "We have observed churn for some customers. \nWe have not for others.",
+       caption = "Charlie and Dave are censored") +
   theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
 
-```{r}
+## Charlie and Dave are censored {.smaller}
+We know Charlie and Dave's starting point -  their signup date, but we have not observed their ending date - their churn date. 
+
+These are **censored** observations. 
+
+It can be tempting to treat these observations as missing. But they're not.   
+We have partial information for Charlie and Dave and excluding them from the analysis will result in incorrect estimates. 
+
+## We encounter censored data all the time {.smaller} 
+-   Time from disease onset to death
+-   Time from widget creation to failure
+-   Time from order to re-order
+
+If you are asking yourself, *"how long until?"* or *"has it happened yet?"*, you will likely encounter censored data. 
+
+These are all examples of right censored data but there are other kinds. 
+
+```{r read_data}
 #| include: false
-#| download from https://www.kaggle.com/datasets/blastchar/telco-customer-churn and put in a data folder
+# download from https://www.kaggle.com/datasets/blastchar/telco-customer-churn and put in a data folder
 telco_data <- read.csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv") 
 ```
 
-```{r}
+```{r preprocess_time_vars}
 #| include: false
 set.seed(502)
 
@@ -159,9 +176,8 @@ telco_data_clean <- telco_data |>
     select(customer_id, tenure, churn, event, signup_date, signup_month, month, everything())
 ```
 
-```{r}
+```{r calc_biased_monthly_churn}
 #| include: false
-#| eval: false
 monthly_stats <- telco_data_clean |> 
   count(month, name = "total") |> 
   left_join(telco_data_clean |> 
@@ -174,7 +190,7 @@ monthly_stats <- telco_data_clean |>
   select(month, total, churn, n, percent, months_to_churn)
 ```
 
-```{r}
+```{r plot_biased_monthly_churn}
 #| include: false
 monthly_stats |> 
   filter(churn == "No", month != max(month)) |> 
@@ -185,22 +201,12 @@ monthly_stats |>
   theme_minimal()
 ```
 
-```{r}
-#| include: false
+## What is the probability of churning by time since sign up?
+##### Old School: Survival Package
 
-# this is not correct
-monthly_stats |> 
-  filter(churn == "No") |> 
-  ggplot(aes(x = month, y = months_to_churn)) + 
-  geom_line(color = "blue") +
-  scale_x_date(name = "Signup Date") +
-  #warbler::scale_y_comma(name = "Time to next purchase (months)") +
-  theme_minimal()
-```
-
-## Kaplan Meier Curves Survival Package
-
-```{r}
+```{r km_base_surv}
+library(survival)
+# Kaplan Meier Estimates
 km_base_surv <- survfit(Surv(tenure, event) ~ 1, 
                       data = telco_data_clean) |> 
   broom::tidy(km)
@@ -208,20 +214,29 @@ km_base_surv <- survfit(Surv(tenure, event) ~ 1,
 km_base_surv
 ```
 
-```{r}
-survfit(Surv(tenure, event) ~ 1, 
-                              data = telco_data_clean) |> 
-  ggsurvfit() +
-  labs(
-    x = "Days",
-    y = "Overall survival probability"
-    ) + 
-  add_confidence_interval() +
-  add_risktable()
+```{r plot_km_base_surv}
+#| echo: false
+km_base_surv %>%
+  ggplot() +
+  geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
+  geom_ribbon(aes(x = time,
+                  ymin = conf.low,
+                  ymax = conf.high),
+              alpha = 0.25) +
+  geom_line(aes(x = time, y = estimate)) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks = seq(0,80, by = 12)) +
+  labs(title = 'Probability of churning by months since sign up',
+       subtitle = '',
+       caption = '',
+       x = 'Months since sign up',
+       y = 'Probability') +
+    theme_minimal() +
+    theme(plot.title = element_text(size = 20, face = "bold"),
+        plot.subtitle = element_text(size = 15))
 ```
 
-
-```{r}
+```{r km_internet_service_surv}
 km_internet_service_surv <- survfit(Surv(tenure, event) ~ internet_service, 
                               data = telco_data_clean) |> 
   broom::tidy(km) %>%
@@ -233,42 +248,24 @@ km_internet_service_surv
 
 ## Plot the curves
 
-```{r}
+```{r plot_km_internet_service_surv}
 km_internet_service_surv %>%
   ggplot() +
-  geom_hline(yintercept = 0.5, color = warbler::wp_colors('charcoal'), lwd = 0.5) +
+  geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
   geom_ribbon(aes(x = time,
                   ymin = conf.low,
                   ymax = conf.high,
                   fill = internet_service),
               alpha = 0.25) +
   geom_line(aes(x = time, y = estimate, color = internet_service)) +
-  scale_color_manual(values = c("#1F968BFF", "#FDE725FF",
-                                "#404788FF")) +
-  #scale_color_viridis_d() +
-  #scale_color_viridis(name = "Internet Service") 
-  # scale_fill_viridis(name = "Internet Service") 
-  # theme(legend.title = element_blank()) +
   scale_y_continuous(labels = scales::percent) +
   scale_x_continuous(breaks = seq(0,80, by = 12)) +
-  labs(title='Probability of churning within specified times',
-       subtitle = 'Internet Service',
-       caption = 'Say Something',
+  labs(title = 'Probability of churning by months and internet service type',
+       subtitle = '',
+       caption = '',
        x = 'Months since sign up',
        y = 'Probability') +
     theme_minimal()
-```
-
-```{r}
-survfit(Surv(tenure, event) ~ internet_service, 
-                              data = telco_data_clean) |> 
-  ggsurvfit() +
-  labs(
-    x = "Days",
-    y = "Overall survival probability"
-    ) + 
-  add_confidence_interval() +
-  add_risktable()
 ```
 
 ## Cox Proportional Hazards Survival Package
@@ -280,21 +277,17 @@ cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
         # because the default for factor levels is alphabetical, the enabled becomes the reference group
         # unless we reorder the levels.
         mutate(internet_service = factor(internet_service, levels = c("Fiber optic", "DSL", "No")))) %>%
-  tidy()
+  broom::tidy()
 
 cox_ph_internet_service_surv
 ```
 
-## Cox Proportional Hazards Survival Package Get Predictions
-
-```{r}
-# get predictions
-```
-
 ## Cox Proportions Hazards in TidyModels
 
-```{r}
-#| eval: false
+```{r cox_ph_internet_service_tidy}
+library(parsnip)
+library(censored)
+
 cox_ph_internet_service_tidy <- proportional_hazards()  |>  
   set_engine("survival") |>  
   set_mode("censored regression") |>  
@@ -357,14 +350,6 @@ km_base_simple <- make_km_estimates_by_hand(simple_df, time, event)
   # mutate(estimate = round(estimate,3), 
   #        std_error =round(std_error,3))
 km_base_simple
-```
-
-
-## Hazard by Hand (not proportional) 
-
-```{r}
-#| include: false
-
 ```
 
 ## Special Topics
