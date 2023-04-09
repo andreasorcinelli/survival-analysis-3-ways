@@ -10,28 +10,43 @@ library(tidyverse)
 library(lubridate)
 ```
 
-## TODOs
-
--   finish demo code for talk
-
 ## Outline {.smaller}
 
--   Intro and background about me
--   Notes about how I present
-    -   There's code on the slides. Don't worry about reading it.
-    -   Teach you how to drive the car, then show you what's under the hood.
--   Motivating problem - censored data
--   Where might you use this?
-    -   Anytime you are predicting time to an event (churn, repurchase, widgit failure)
--   What is survival analysis?
--   Kaplan-Meier
--   Survival package
--   Tidymodels - censored - parsnip extension package
--   What does tidymodels afford you that survival doesn't?
--   Intuition for KM estimators
--   Return to motivating slides with two sets of graphs
--   Advanced topics
--   References
+-   [x] Intro and background about me
+
+-   [x] Notes about how I present
+
+-   [x] There's code on the slides
+
+    -   [x] Don't worry about reading it.
+
+-   [ ] Teach you how to drive the car, then show you what's under the hood.
+
+-   [x] Motivating problem - censored data
+
+-   [x] Where might you use this?
+
+    -   [x] Anytime you are predicting time to an event (churn, repurchase, widget failure)
+
+-   [ ] What is survival analysis?
+
+-   [x] Kaplan Meier Estimates in Survival package
+
+-   [x] Plotting Kaplan Meier curves
+
+-   [ ] Comparing groups using Cox Ph Survival package
+
+-   [ ] Tidymodels - censored - parsnip extension package
+
+-   [ ] Intuition for KM estimators
+
+-   [ ] What does each approach afford you?
+
+-   [ ] Return to motivating slides with biased and unbiased estimaes
+
+-   [x] Advanced topics
+
+-   [x] References
 
 ## Choices
 
@@ -59,7 +74,7 @@ andrea |>
 
 ## How I present code in talks
 
-There is code in this talk. 
+There is code in this talk.
 
 Don't worry about the details.
 
@@ -74,16 +89,15 @@ Don't worry about the details.
 
 ## Back to how I present code in talks
 
-Don't worry about the specifics of the code.  
+Don't worry about the specifics of the code.
 
-Focus on the the high-level. It's all on GitHub.  
+Focus on the the high-level. It's all on GitHub.
 
-There are 4 lines of code that we are going to go through in detail.  
+There are 4 lines of code that we are going to go through in detail.
 
 ## Predicting time between sign up and churn {.smaller}
 
 Imagine you work for a communication service provider like Xfinity or Verizon. A big part of your business is going to be focused on understanding renewals.Who keeps their contract and who **cancels their contract or churns**?
-
 
 Data from [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) used throughout.
 
@@ -129,21 +143,23 @@ fake_data %>%
 ```
 
 ## Charlie and Dave are censored {.smaller}
-We know Charlie and Dave's starting point -  their signup date, but we have not observed their ending date - their churn date. 
 
-These are **censored** observations. 
+We know Charlie and Dave's starting point - their signup date, but we have not observed their ending date - their churn date.
 
-It can be tempting to treat these observations as missing. But they're not.   
-We have partial information for Charlie and Dave and excluding them from the analysis will result in incorrect estimates. 
+These are **censored** observations.
 
-## We encounter censored data all the time {.smaller} 
+It can be tempting to treat these observations as missing. But they're not.\
+We have partial information for Charlie and Dave and excluding them from the analysis will result in incorrect estimates.
+
+## We encounter censored data all the time {.smaller}
+
 -   Time from disease onset to death
 -   Time from widget creation to failure
 -   Time from order to re-order
 
-If you are asking yourself, *"how long until?"* or *"has it happened yet?"*, you will likely encounter censored data. 
+If you are asking yourself, *"how long until?"* or *"has it happened yet?"*, you will likely encounter censored data.
 
-These are all examples of right censored data but there are other kinds. 
+These are all examples of right censored data but there are other kinds.
 
 ```{r read_data}
 #| include: false
@@ -202,6 +218,7 @@ monthly_stats |>
 ```
 
 ## What is the probability of churning by time since sign up?
+
 ##### Old School: Survival Package
 
 ```{r km_base_surv}
