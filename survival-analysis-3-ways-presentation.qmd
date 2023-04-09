@@ -268,7 +268,6 @@ km_base_surv %>%
     theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
-
 ```{r km_internet_service_surv}
 km_internet_service_surv <- survfit(Surv(tenure, event) ~ internet_service, 
                               data = telco_data_clean) |> 
@@ -282,6 +281,7 @@ km_internet_service_surv
 ## Plot the curves
 
 ```{r plot_km_internet_service_surv}
+#| echo: false
 km_internet_service_surv %>%
   ggplot() +
   geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
@@ -315,7 +315,7 @@ cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
 cox_ph_internet_service_surv
 ```
 
-## Cox Proportions Hazards in TidyModels
+## Cox Proportions Hazards in TidyModels {.smaller}
 
 ```{r cox_ph_internet_service_tidy}
 library(parsnip)
@@ -364,25 +364,34 @@ make_km_estimates_by_hand <- function(df, time_var, event_var){
 ```
 
 ```{r}
+#| include: false
 km_base_as <- make_km_estimates_by_hand(telco_data_clean, tenure, event)
 km_base_as
 ```
 
 ```{r}
+#| include: false
+# pulled from here
+# https://sphweb.bumc.bu.edu/otlt/mph-modules/bs/bs704_survival/bs704_survival4.html#:~:text=With%20the%20Kaplan%2DMeier%20approach,the%20actuarial%20life%20table%20approach.
+# I don't agree that there are 20 observations at risk at start
+# I see 18
+
 simple_df <- tibble(time = c(0,1,2,3,5,6,9,10,11,12,13,14,17,18,19,21,23,24), 
                    event= c(0,1,0,1,1,0,0,0,0,0,0,1,1,0,0,0,1,0))
+
+make_km_estimates_by_hand(simple_df, time, event) |> 
+    mutate(estimate = round(estimate,3),
+         std_error =round(std_error,3))
 ```
 
 ```{r}
-simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11), 
+#| include: false
+# pulled from here
+# https://real-statistics.com/survival-analysis/kaplan-meier-procedure/confidence-interval-for-the-survival-function/
+another_simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11), 
                    event = c(1,1,1,0,1,0,1,1,0,0,1,1,0,0,1,1,1,1))
-```
 
-```{r}
-km_base_simple <- make_km_estimates_by_hand(simple_df, time, event)
-  # mutate(estimate = round(estimate,3), 
-  #        std_error =round(std_error,3))
-km_base_simple
+make_km_estimates_by_hand(another_simple_df, time, event)
 ```
 
 ## Special Topics
