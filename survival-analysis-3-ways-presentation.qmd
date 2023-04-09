@@ -48,7 +48,7 @@ library(lubridate)
 
 -   [x] References
 
-## Choices
+## Choices {.smaller}
 
 -   How do I want to show naive estimates? I don't think I want to show them in the initial set up. I don't think that has been as intuitive for people.
 -   I'm not sure I want to show median time to churn by month
@@ -71,6 +71,19 @@ andrea |>
   study(cognition_and_perception) |> 
   work(brain_pop, warby_parker)
 ```
+
+## I'm Andrea. Hi!
+
+::: {layout-ncol="2"}
+![](talk_images/sorcinelli_headshot.jpg){height="300%"}
+
+```{r}
+#| eval: false
+andrea |> 
+  study(cognition_and_perception) |> 
+  work(brain_pop, warby_parker)
+```
+:::
 
 ## How I present code in talks
 
@@ -97,11 +110,13 @@ There are 4 lines of code that we are going to go through in detail.
 
 ## Predicting time between sign up and churn {.smaller}
 
-Imagine you work for a communication service provider like Xfinity or Verizon. A big part of your business is going to be focused on understanding renewals.Who keeps their contract and who **cancels their contract or churns**?
+Imagine you work for a communication service provider like Xfinity or Verizon. A big part of your business is going to be focused on understanding renewals. Who keeps their contract and who **cancels their contract or churns**?
+
+Ideally, you'd like to be able to predict a probability of churning.
 
 Data from [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) used throughout.
 
-## Some customers signed up a long time ago; Others only recently
+## Some customers signed up a long time ago; others only recently
 
 ```{r}
 #| include: false
@@ -149,7 +164,7 @@ We know Charlie and Dave's starting point - their signup date, but we have not o
 These are **censored** observations.
 
 It can be tempting to treat these observations as missing. But they're not.\
-We have partial information for Charlie and Dave and excluding them from the analysis will result in incorrect estimates.
+We have partial information for Charlie and Dave and excluding them from the analysis will result in incorrect estimates of when customers churn.
 
 ## We encounter censored data all the time {.smaller}
 
@@ -157,9 +172,9 @@ We have partial information for Charlie and Dave and excluding them from the ana
 -   Time from widget creation to failure
 -   Time from order to re-order
 
-If you are asking yourself, *"how long until?"* or *"has it happened yet?"*, you will likely encounter censored data.
+If you are asking yourself, *"how long until?"* or *"has it happened yet?"* you likely have censored data. These are all examples of right censored data but there are other kinds.
 
-These are all examples of right censored data but there are other kinds.
+## Survival analyses help us address censored data 
 
 ```{r read_data}
 #| include: false
@@ -207,13 +222,14 @@ monthly_stats <- telco_data_clean |>
 ```
 
 ```{r plot_biased_monthly_churn}
-#| include: false
 monthly_stats |> 
   filter(churn == "No", month != max(month)) |> 
   ggplot(aes(x = month, y = percent)) +
   geom_line(color = "blue") +
   scale_x_date(name = "Signup Date") +
   scale_y_continuous(labels = scales::percent) +
+  labs(title = "", 
+       subtitle = "") +
   theme_minimal()
 ```
 
@@ -382,70 +398,3 @@ km_base_simple
 [Hannah Frick's censored - survival analysis in Tidymodels from rstudio_conf(2022)](https://www.rstudio.com/conference/2022/talks/censored-survival-analysis-in-tidymodels/)
 
 [censored - parsnip extension package](https://censored.tidymodels.org/)
-
-## Dead Code
-
-```{r}
-#| include: false
-#| eval: false
-cetaceans <- read_csv(
-    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018/2018-12-18/allCetaceanData.csv",
-    col_select = -c("...1")) |> 
-  janitor::clean_names() 
-
-```
-
-```{r}
-#| include: false
-#| eval: false
-cetaceans <- cetaceans |> 
-  mutate(#age = year(today()) - birth_year, 
-    age = if_else(status == "Alive", year(today()) - birth_year, 
-                  year(status_date) - birth_year),     
-         event = if_else(status == "Alive", 0, 1), 
-    born_in_captivity = if_else(acquisition == "Born", "yes", "no")) |> 
-  select(age, event, everything())
-```
-
-```{r}
-#| eval: false
-mod_survival_censored <- proportional_hazards()  |>  
-  set_engine("survival") |>  
-  set_mode("censored regression") |>  
-  fit(
-    Surv(age, event) ~ species + sex + transfers +
-      strata (born_in_captivity),
-    #Surv(age, event) ~ species,
-    data = cetaceans
-)
-```
-
-```{r}
-# This function calculates the Kaplan-Meier estimates, standard errors, and 95% CI's based on the number of 
-# observations at risk, the number of censored observations, and the number of observations that experienced the 
-# event for each unit of time. 
-# The goal of this function is to provide an intuition for how the KM calculations work. 
-make_km_estimates_by_hand_old <- function(df, time_var, event_var){
-  
-  df %>%
-    group_by({{ time_var }}) %>% 
-    summarise(total_at_start = nrow(.), 
-              n_event = sum({{ event_var }}), 
-              n_censor = sum({{ event_var }} == 0)) %>% 
-    mutate(n_risk = lag(total_at_start - cumsum(n_event) - cumsum(n_censor), default = unique(total_at_start)),
-           prob_repurchase = (n_risk - n_event)/n_risk, 
-           estimate = cumprod((n_risk - n_event)/n_risk), 
-           #se_as = sqrt(cumsum(event/(risk*(risk - event)))) * estimate_as,
-           std_error = sqrt(cumsum(n_event/(n_risk*(n_risk - n_event)))) * estimate,
-           conf_high = estimate + (1.96 * std_error), 
-           conf_low = estimate - (1.96 * std_error)) %>%
-    select("time" = {{ time_var}}, 
-           n_risk, 
-           n_event, 
-           n_censor, 
-           estimate, 
-           std_error, 
-           conf_high, 
-           conf_low)
-}
-```
