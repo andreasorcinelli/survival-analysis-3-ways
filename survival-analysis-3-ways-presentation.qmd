@@ -1,0 +1,449 @@
+---
+title: "Predicting Time Between Events: Survival Analysis 3 Ways"
+format: revealjs
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(parsnip)
+library(censored)
+library(survival)
+library(ggsurvfit)
+```
+
+## TODOs
+
+-   finish demo code for talk
+
+
+## Outline
+
+-   Intro and background about me
+-   Notes about how I present
+    -   There's code on the slides. Don't worry about reading it.
+    -   Teach you how to drive the car, then show you what's under the hood.
+-   Motivating problem - censored data
+-   Where might you use this?
+    -   Anytime you are predicting time to an event (churn, repurchase, widgit failure)
+-   What is survival analysis?
+-   Kaplan-Meier
+-   Survival package
+-   Tidymodels - censored - parsnip extension package
+-   What does tidymodels afford you that survival doesn't?
+-   Intuition for KM estimators
+-   Return to motivating slides with two sets of graphs
+-   Advanced topics
+-   References
+
+## Choices
+-   How do I want to show naive estimates? I don't think I want to show them in the initial set up. I don't think that has been as intuitive for people. 
+- I'm not sure I want to show median time to churn by month
+- I think I want to show overall probability of survival with censoring and without censoring on the same graph. 
+-  Unresolved questions: do I want to show ggsurvfit for making plots? I tend not to do this but it might be an easy way for folks to get started. 
+- Do I want to plot hazards?
+- Do I want to show extracting predictions from a cox surv object?
+
+
+## Who are you?
+
+![](https://media.giphy.com/media/3ohs4lOlH8GhRtb6QU/giphy.gif)
+
+## I'm Andrea. Hi!
+![](talk_images/sorcinelli_headshot.jpg)
+
+```{r}
+#| eval: false
+andrea |> 
+  study(cognition_and_perception) |> 
+  work(brain_pop, warby_parker)
+```
+
+## How I present code in talks
+
+There is code in this talk. Don't worry about the details. 
+
+*Really.* 
+
+## My goal is for you to leave with an understanding of the following:
+
+-   The kinds of situations that call for survival analysis  
+-   Why it is important not to treat censored observations as missing  
+-   There are different packages for implementing survival analysis in R  
+-   An intuition for how survival analysis works   
+
+
+## Back to how I present code in talks
+
+Don't worry about the specifics of the code. Just try to get the high-level. It's all on GitHub.  
+
+There are 4 lines of code that we are going to go through in detail. 
+
+## Predicting time between sign up and churn
+
+Imagine you work for a communication service provider like Xfinity or Verizon. A huge part of your business is going to be focused on understanding renewals. Who keeps their contract and who cancels or churns?  
+
+I am using data from [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) throughout.
+
+## Some customers signed up a long time ago; Others only recently
+
+```{r}
+#| include: false
+fake_data <- tibble(customer = c("Alice", "Bob", "Charlie", "Dave", "Erin"),
+               signup_date = lubridate::ymd(c("2019-01-01", "2020-01-01", "2021-01-01", "2022-01-01", "2022-07-01")),
+               churn_date = lubridate::ymd(c("2021-03-01", "2022-02-01", NA, NA, "2023-01-01")),
+               tenure =  round(as.numeric(as.duration(churn_date - signup_date), 'months'),2),
+         is_churned = as.numeric(!is.na(churn_date)),
+         cohort = year(signup_date))
+```
+
+```{r}
+#| echo: false
+fake_data %>%
+  ggplot(.,  aes(y = fct_rev(customer))) +
+  geom_point(aes(x = signup_date, color = "blue"), size = 3) +
+  geom_point(aes(x = churn_date, color = "red"), size = 3) +
+  geom_segment(aes(x = signup_date,
+                   y = customer,
+                   xend = coalesce(churn_date, lubridate::ymd("2023-04-01")),
+                   yend = customer),
+               linewidth = 1) +
+  scale_colour_manual(breaks = c("blue", "red"),
+                      labels = c("Signup Date", "Churn Date"),
+                      values = c("blue", "red")) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  #theme_wp(base_size = 20) +
+  theme(panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  theme(legend.position = "none") +
+  labs(x = "Year",
+       y = "Customer",
+       title = "Time from sign up to churn",
+       subtitle = "We have observed churn for some customers. \nWe have not for others.") +
+  theme(plot.title = element_text(size = 20, face = "bold"),
+        plot.subtitle = element_text(size = 15))
+```
+
+```{r}
+#| include: false
+#| download from https://www.kaggle.com/datasets/blastchar/telco-customer-churn and put in a data folder
+telco_data <- read.csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv") 
+```
+
+```{r}
+#| include: false
+set.seed(502)
+
+telco_data_clean <- telco_data |> 
+  janitor::clean_names()  |>
+  # Assuming that tenure is in months 
+  # I want to create a signup date at a finer grain than the month but I don't really have that information. 
+  # So I randomly sample days between 0 and 30. 
+  # I know I should take into account months with greater than or less than 30 days but not in scope for this talk :)
+  # This is a little strange bc it's going to artificially set the signup date to the same day each month but I don't have data at a finer grain. 
+  mutate(signup_date = today() - months(tenure), 
+         signup_day = sample(1:28, dim(telco_data)[1], replace = TRUE),
+         signup_month = if_else(month(signup_date) > 9, 
+                               as.character(month(signup_date)), 
+                               paste0("0", month(signup_date))),
+         #signup_month = ym(paste0(year(signup_date), signup_month)),
+         signup_date = ymd(paste0(year(signup_date), signup_month, signup_day)),
+         month = ymd(sprintf("%d-%0d-01",
+                             year(signup_date),
+                             month(signup_date))),
+         event = if_else(churn == "Yes", 1, 0)) |> 
+    select(customer_id, tenure, churn, event, signup_date, signup_month, month, everything())
+```
+
+```{r}
+#| include: false
+#| eval: false
+monthly_stats <- telco_data_clean |> 
+  count(month, name = "total") |> 
+  left_join(telco_data_clean |> 
+              count(month, churn), by = "month") |> 
+  mutate(percent = n/total) |> 
+  left_join(telco_data_clean |>
+              group_by(month) |>
+              summarize(months_to_churn = median(tenure / 30, na.rm = TRUE), .groups = "drop"), 
+            by = "month") |> 
+  select(month, total, churn, n, percent, months_to_churn)
+```
+
+```{r}
+#| include: false
+monthly_stats |> 
+  filter(churn == "No", month != max(month)) |> 
+  ggplot(aes(x = month, y = percent)) +
+  geom_line(color = "blue") +
+  scale_x_date(name = "Signup Date") +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+```
+
+```{r}
+#| include: false
+
+# this is not correct
+monthly_stats |> 
+  filter(churn == "No") |> 
+  ggplot(aes(x = month, y = months_to_churn)) + 
+  geom_line(color = "blue") +
+  scale_x_date(name = "Signup Date") +
+  #warbler::scale_y_comma(name = "Time to next purchase (months)") +
+  theme_minimal()
+```
+
+## Kaplan Meier Curves Survival Package
+
+```{r}
+km_base_surv <- survfit(Surv(tenure, event) ~ 1, 
+                      data = telco_data_clean) |> 
+  broom::tidy(km)
+
+km_base_surv
+```
+
+```{r}
+survfit(Surv(tenure, event) ~ 1, 
+                              data = telco_data_clean) |> 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+```
+
+
+```{r}
+km_internet_service_surv <- survfit(Surv(tenure, event) ~ internet_service, 
+                              data = telco_data_clean) |> 
+  broom::tidy(km) %>%
+  separate(strata, into = c("internet_service"), sep=', ') |> 
+  mutate_at(c("internet_service"), ~ str_trim(str_remove(.x, '^.*='), side = "right"))
+
+km_internet_service_surv
+```
+
+## Plot the curves
+
+```{r}
+km_internet_service_surv %>%
+  ggplot() +
+  geom_hline(yintercept = 0.5, color = warbler::wp_colors('charcoal'), lwd = 0.5) +
+  geom_ribbon(aes(x = time,
+                  ymin = conf.low,
+                  ymax = conf.high,
+                  fill = internet_service),
+              alpha = 0.25) +
+  geom_line(aes(x = time, y = estimate, color = internet_service)) +
+  scale_color_manual(values = c("#1F968BFF", "#FDE725FF",
+                                "#404788FF")) +
+  #scale_color_viridis_d() +
+  #scale_color_viridis(name = "Internet Service") 
+  # scale_fill_viridis(name = "Internet Service") 
+  # theme(legend.title = element_blank()) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks = seq(0,80, by = 12)) +
+  labs(title='Probability of churning within specified times',
+       subtitle = 'Internet Service',
+       caption = 'Say Something',
+       x = 'Months since sign up',
+       y = 'Probability') +
+    theme_minimal()
+```
+
+```{r}
+survfit(Surv(tenure, event) ~ internet_service, 
+                              data = telco_data_clean) |> 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+    ) + 
+  add_confidence_interval() +
+  add_risktable()
+```
+
+## Cox Proportional Hazards Survival Package
+
+```{r}
+# coefficient
+cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
+      data = telco_data_clean %>%
+        # because the default for factor levels is alphabetical, the enabled becomes the reference group
+        # unless we reorder the levels.
+        mutate(internet_service = factor(internet_service, levels = c("Fiber optic", "DSL", "No")))) %>%
+  tidy()
+
+cox_ph_internet_service_surv
+```
+
+## Cox Proportional Hazards Survival Package Get Predictions
+
+```{r}
+# get predictions
+```
+
+## Cox Proportions Hazards in TidyModels
+
+```{r}
+#| eval: false
+cox_ph_internet_service_tidy <- proportional_hazards()  |>  
+  set_engine("survival") |>  
+  set_mode("censored regression") |>  
+  fit(
+    Surv(tenure, event) ~ internet_service,
+    data = telco_data_clean
+)
+
+cox_ph_internet_service_tidy
+```
+
+## Calculate Kaplan Meier Estimates By Hand
+
+```{r}
+make_km_estimates_by_hand <- function(df, time_var, event_var){
+  
+  total_at_start <- df |> 
+    nrow()
+  
+  total_at_start <- dim(df)[1]
+  
+  df |> 
+    group_by({{ time_var }}) %>% 
+    summarise(n_event = sum({{ event_var }}), 
+              n_censor = sum({{ event_var }} == 0)) |> 
+    mutate(n_risk = lag(total_at_start - cumsum(n_event) - cumsum(n_censor), default = total_at_start),
+           prob_repurchase = (n_risk - n_event)/n_risk, 
+           estimate = cumprod((n_risk - n_event)/n_risk), 
+           std_error = sqrt(cumsum(n_event/(n_risk*(n_risk - n_event)))) * estimate,
+           conf_high = estimate + (1.96 * std_error), 
+           conf_low = estimate - (1.96 * std_error)) |> 
+    select("time" = {{ time_var}}, 
+           n_risk, 
+           n_event, 
+           n_censor, 
+           estimate, 
+           std_error, 
+           conf_high, 
+           conf_low)
+}
+```
+
+```{r}
+km_base_as <- make_km_estimates_by_hand(telco_data_clean, tenure, event)
+km_base_as
+```
+
+```{r}
+simple_df <- tibble(time = c(0,1,2,3,5,6,9,10,11,12,13,14,17,18,19,21,23,24), 
+                   event= c(0,1,0,1,1,0,0,0,0,0,0,1,1,0,0,0,1,0))
+```
+
+```{r}
+simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11), 
+                   event = c(1,1,1,0,1,0,1,1,0,0,1,1,0,0,1,1,1,1))
+```
+
+```{r}
+km_base_simple <- make_km_estimates_by_hand(simple_df, time, event)
+  # mutate(estimate = round(estimate,3), 
+  #        std_error =round(std_error,3))
+km_base_simple
+```
+
+
+## Hazard by Hand (not proportional) 
+
+```{r}
+#| include: false
+
+```
+
+## Special Topics
+
+-   competing risks
+-   predicting recurrent events
+-   synthesizing data
+
+## References
+
+[Emily Zabor Survival Analysis Tutorial](https://www.emilyzabor.com/tutorials/survival_analysis_in_r_tutorial.html#Part_1:_Introduction_to_Survival_Analysis)
+
+[Hannah Frick's censored - survival analysis in Tidymodels from rstudio_conf(2022)](https://www.rstudio.com/conference/2022/talks/censored-survival-analysis-in-tidymodels/)
+
+[censored - parsnip extension package](https://censored.tidymodels.org/)
+
+## Dead Code
+
+```{r}
+#| include: false
+#| eval: false
+cetaceans <- read_csv(
+    "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018/2018-12-18/allCetaceanData.csv",
+    col_select = -c("...1")) |> 
+  janitor::clean_names() 
+
+```
+
+```{r}
+#| include: false
+#| eval: false
+cetaceans <- cetaceans |> 
+  mutate(#age = year(today()) - birth_year, 
+    age = if_else(status == "Alive", year(today()) - birth_year, 
+                  year(status_date) - birth_year),     
+         event = if_else(status == "Alive", 0, 1), 
+    born_in_captivity = if_else(acquisition == "Born", "yes", "no")) |> 
+  select(age, event, everything())
+```
+
+```{r}
+#| eval: false
+mod_survival_censored <- proportional_hazards()  |>  
+  set_engine("survival") |>  
+  set_mode("censored regression") |>  
+  fit(
+    Surv(age, event) ~ species + sex + transfers +
+      strata (born_in_captivity),
+    #Surv(age, event) ~ species,
+    data = cetaceans
+)
+```
+
+```{r}
+# This function calculates the Kaplan-Meier estimates, standard errors, and 95% CI's based on the number of 
+# observations at risk, the number of censored observations, and the number of observations that experienced the 
+# event for each unit of time. 
+# The goal of this function is to provide an intuition for how the KM calculations work. 
+make_km_estimates_by_hand_old <- function(df, time_var, event_var){
+  
+  df %>%
+    group_by({{ time_var }}) %>% 
+    summarise(total_at_start = nrow(.), 
+              n_event = sum({{ event_var }}), 
+              n_censor = sum({{ event_var }} == 0)) %>% 
+    mutate(n_risk = lag(total_at_start - cumsum(n_event) - cumsum(n_censor), default = unique(total_at_start)),
+           prob_repurchase = (n_risk - n_event)/n_risk, 
+           estimate = cumprod((n_risk - n_event)/n_risk), 
+           #se_as = sqrt(cumsum(event/(risk*(risk - event)))) * estimate_as,
+           std_error = sqrt(cumsum(n_event/(n_risk*(n_risk - n_event)))) * estimate,
+           conf_high = estimate + (1.96 * std_error), 
+           conf_low = estimate - (1.96 * std_error)) %>%
+    select("time" = {{ time_var}}, 
+           n_risk, 
+           n_event, 
+           n_censor, 
+           estimate, 
+           std_error, 
+           conf_high, 
+           conf_low)
+}
+```
