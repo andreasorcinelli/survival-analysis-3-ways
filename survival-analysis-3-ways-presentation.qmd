@@ -93,7 +93,7 @@ Don't worry about the details.
 
 *Really.*
 
-## My goal is for you to leave with an understanding of the following:
+## My goal is for you to leave with an understanding of
 
 -   The kinds of situations that call for survival analysis\
 -   Why it is important not to treat censored observations as missing\
@@ -174,7 +174,7 @@ We have partial information for Charlie and Dave and excluding them from the ana
 
 If you are asking yourself, *"how long until?"* or *"has it happened yet?"* you likely have censored data. These are all examples of right censored data but there are other kinds.
 
-## Survival analyses help us address censored data 
+## Survival analyses help us address censored data
 
 ```{r read_data}
 #| include: false
@@ -222,18 +222,19 @@ monthly_stats <- telco_data_clean |>
 ```
 
 ```{r plot_biased_monthly_churn}
+#| echo: false
 monthly_stats |> 
   filter(churn == "No", month != max(month)) |> 
   ggplot(aes(x = month, y = percent)) +
   geom_line(color = "blue") +
   scale_x_date(name = "Signup Date") +
   scale_y_continuous(labels = scales::percent) +
-  labs(title = "", 
+  labs(title = "TODO: Add all the stuff", 
        subtitle = "") +
   theme_minimal()
 ```
 
-## What is the probability of churning by time since sign up?
+## What is the probability of churning by time since sign up? {.smaller}
 
 ##### Old School: Survival Package
 
@@ -246,6 +247,8 @@ km_base_surv <- survfit(Surv(tenure, event) ~ 1,
 
 km_base_surv
 ```
+
+## Kaplan Meier curve
 
 ```{r plot_km_base_surv}
 #| echo: false
@@ -268,21 +271,26 @@ km_base_surv %>%
     theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
+
+## Does probability of churning differ depending on the type of internet service? {.smaller}
+
+##### Old School: Survival Package
+
 ```{r km_internet_service_surv}
 km_internet_service_surv <- survfit(Surv(tenure, event) ~ internet_service, 
                               data = telco_data_clean) |> 
-  broom::tidy(km) %>%
-  separate(strata, into = c("internet_service"), sep=', ') |> 
-  mutate_at(c("internet_service"), ~ str_trim(str_remove(.x, '^.*='), side = "right"))
+  broom::tidy(km) 
 
 km_internet_service_surv
 ```
 
-## Plot the curves
+## Kaplan Meier curves by internet service type
 
 ```{r plot_km_internet_service_surv}
 #| echo: false
-km_internet_service_surv %>%
+km_internet_service_surv |> 
+  separate(strata, into = c("internet_service"), sep=', ') |> 
+  mutate_at(c("internet_service"), ~ str_trim(str_remove(.x, '^.*='), side = "right")) |> 
   ggplot() +
   geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
   geom_ribbon(aes(x = time,
@@ -301,10 +309,12 @@ km_internet_service_surv %>%
     theme_minimal()
 ```
 
-## Cox Proportional Hazards Survival Package
+## How can we quantify the difference between groups? {.smaller}
+
+##### Old School: Survival Package
 
 ```{r}
-# coefficient
+# Cox Proportional Hazards Survival Package
 cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
       data = telco_data_clean %>%
         # because the default for factor levels is alphabetical, the enabled becomes the reference group
@@ -316,6 +326,8 @@ cox_ph_internet_service_surv
 ```
 
 ## Cox Proportions Hazards in TidyModels {.smaller}
+
+##### New School: Censored Package
 
 ```{r cox_ph_internet_service_tidy}
 library(parsnip)
@@ -332,15 +344,16 @@ cox_ph_internet_service_tidy <- proportional_hazards()  |>
 cox_ph_internet_service_tidy
 ```
 
-## Calculate Kaplan Meier Estimates By Hand
+## Cool but how do they work? {.smaller}
 
-```{r}
+##### My School: Let's play around
+
+```{r make_km_estimates_by_hand}
+
 make_km_estimates_by_hand <- function(df, time_var, event_var){
   
   total_at_start <- df |> 
     nrow()
-  
-  total_at_start <- dim(df)[1]
   
   df |> 
     group_by({{ time_var }}) %>% 
@@ -393,6 +406,25 @@ another_simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11
 
 make_km_estimates_by_hand(another_simple_df, time, event)
 ```
+
+## Placeholder
+
+TODO: Verbally explain the math. Something like this but simpler. The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
+
+The survival probability can be estimated as the number of customers who have renewed excluding censoring at that time, divided by the number of customers who had renewed just prior to that time.
+
+The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
+
+## Placeholder
+TODO: Go back to plot comparing naive estimates vs. those from Kaplan Meier. 
+
+## Comparing the 3 Implementations
+
+| Old School: survival package                          | New School: censored package | My School: custom function                       |
+|----------------------------|------------------|--------------------------|
+|                                                      |                              | Dear god, don't ever use this in production code |
+| Extracting predictions is a little more of a headache |                              | Helpful for giving an intuition                  |
+|                                                       |                              |                                                  |
 
 ## Special Topics
 
