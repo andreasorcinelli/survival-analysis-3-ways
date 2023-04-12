@@ -28,34 +28,34 @@ library(lubridate)
 
     -   [x] Anytime you are predicting time to an event (churn, repurchase, widget failure)
 
--   [ ] What is survival analysis?
+-   [x] What is survival analysis?
 
 -   [x] Kaplan Meier Estimates in Survival package
 
 -   [x] Plotting Kaplan Meier curves
 
--   [ ] Comparing groups using Cox Ph Survival package
+-   [x] Comparing groups using Cox Ph Survival package
 
--   [ ] Tidymodels - censored - parsnip extension package
+-   [x] Tidymodels - censored - parsnip extension package
 
--   [ ] Intuition for KM estimators
+-   [x] Intuition for KM estimators
 
--   [ ] What does each approach afford you?
+-   [x] What does each approach afford you?
 
--   [ ] Return to motivating slides with biased and unbiased estimaes
+-   [ ] Return to motivating slides with naive and km estimaes
 
 -   [x] Advanced topics
 
 -   [x] References
 
-## Choices {.smaller}
+## TODOs {.smaller}
 
--   How do I want to show naive estimates? I don't think I want to show them in the initial set up. I don't think that has been as intuitive for people.
--   I'm not sure I want to show median time to churn by month
--   I think I want to show overall probability of survival with censoring and without censoring on the same graph.
--   Unresolved questions: do I want to show ggsurvfit for making plots? I tend not to do this but it might be an easy way for folks to get started.
--   Do I want to plot hazards?
--   Do I want to show extracting predictions from a cox surv object?
+-   [ ] Clean up dead and duplicated code
+-   [ ] WTF is up with the naive estimates plot?
+-   [ ] Plot naive estimates and KM curves on same plot. 
+-   [ ] Add ggsurvfit for making plots to refs
+-   [ ] Decide: Do I want to plot hazards?
+-   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that you mention this is more involved but don't show it. 
 
 ## Who are you?
 
@@ -75,7 +75,7 @@ andrea |>
 ## I'm Andrea. Hi!
 
 ::: {layout-ncol="2"}
-![](talk_images/sorcinelli_headshot.jpg){height="300%"}
+![](talk_images/sorcinelli_headshot.jpg)
 
 ```{r}
 #| eval: false
@@ -102,17 +102,15 @@ Don't worry about the details.
 
 ## Back to how I present code in talks
 
-Don't worry about the specifics of the code.
+Don't worry about the details of the code.
 
 Focus on the the high-level. It's all on GitHub.
 
-There are 4 lines of code that we are going to go through in detail.
-
 ## Predicting time between sign up and churn {.smaller}
 
-Imagine you work for a communication service provider like Xfinity or Verizon. A big part of your business is going to be focused on understanding renewals. Who keeps their contract and who **cancels their contract or churns**?
+Imagine you work for a communication service provider like Xfinity or Verizon. A big part of your business is going to be focused on understanding renewals.
 
-Ideally, you'd like to be able to predict a probability of churning.
+Who keeps their contract and who **cancels their contract or churns**? Ideally, you'd like to be able to estimate a probability of renewal.
 
 Data from [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) used throughout.
 
@@ -166,16 +164,6 @@ These are **censored** observations.
 It can be tempting to treat these observations as missing. But they're not.\
 We have partial information for Charlie and Dave and excluding them from the analysis will result in incorrect estimates of when customers churn.
 
-## We encounter censored data all the time {.smaller}
-
--   Time from disease onset to death
--   Time from widget creation to failure
--   Time from order to re-order
-
-If you are asking yourself, *"how long until?"* or *"has it happened yet?"* you likely have censored data. These are all examples of right censored data but there are other kinds.
-
-## Survival analyses help us address censored data
-
 ```{r read_data}
 #| include: false
 # download from https://www.kaggle.com/datasets/blastchar/telco-customer-churn and put in a data folder
@@ -185,6 +173,8 @@ telco_data <- read.csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
 ```{r preprocess_time_vars}
 #| include: false
 set.seed(502)
+
+#TODO: clean this up. I don't think I even need a bunch of this anymore. 
 
 telco_data_clean <- telco_data |> 
   janitor::clean_names()  |>
@@ -207,40 +197,84 @@ telco_data_clean <- telco_data |>
     select(customer_id, tenure, churn, event, signup_date, signup_month, month, everything())
 ```
 
-```{r calc_biased_monthly_churn}
+## We cannot simply remove censored obersevations
+
+```{r calc_naive_monthly_churn}
 #| include: false
 monthly_stats <- telco_data_clean |> 
-  count(month, name = "total") |> 
+  count(tenure, name = "monthly_total") |> 
   left_join(telco_data_clean |> 
-              count(month, churn), by = "month") |> 
-  mutate(percent = n/total) |> 
-  left_join(telco_data_clean |>
-              group_by(month) |>
-              summarize(months_to_churn = median(tenure / 30, na.rm = TRUE), .groups = "drop"), 
-            by = "month") |> 
-  select(month, total, churn, n, percent, months_to_churn)
+              count(tenure, event), by = "tenure") |> 
+  # add a cumulative sum of event 
+  mutate(monthly_percent = n/monthly_total, 
+         overall_total = dim(telco_data_clean)[1], 
+         overall_percent = n/overall_total) |> 
+  select(tenure, event, n, monthly_total, monthly_percent, overall_total, overall_percent)
 ```
 
-```{r plot_biased_monthly_churn}
+```{r plot_naive_monthly_churn}
 #| echo: false
 monthly_stats |> 
-  filter(churn == "No", month != max(month)) |> 
-  ggplot(aes(x = month, y = percent)) +
+  filter(event == 1, tenure != 0) |>
+  ggplot(aes(x = tenure, y = monthly_percent)) +
   geom_line(color = "blue") +
-  scale_x_date(name = "Signup Date") +
+  #scale_x_date(name = "Signup Date") +
   scale_y_continuous(labels = scales::percent) +
-  labs(title = "TODO: Add all the stuff", 
-       subtitle = "") +
+  labs(title = "Simply removing censored observation over-estimates the survival probability.", 
+       subtitle = "These estimates are incorrect.",
+       x = "Time since sign up (months)", 
+       y = "Percent") +
   theme_minimal()
 ```
 
-## What is the probability of churning by time since sign up? {.smaller}
+## We cannot simply remove censored obersevations
+
+```{r calc_naive_monthly_churn_2}
+#| include: false
+naive_estimate <- monthly_stats |> 
+  filter(event == 1) |> 
+  mutate(running_total = cumsum(monthly_total), 
+         overall_percent = running_total/overall_total)
+```
+
+```{r plot_naive_monthly_churn_2}
+#| echo: false
+naive_estimate |> 
+  filter(tenure != 0) |>
+  ggplot(aes(x = tenure, y = 1 - overall_percent)) +
+  geom_line(color = "blue") +
+  #scale_x_date(name = "Signup Date") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Simply removing censored observation over-estimates the survival probability.", 
+       subtitle = "These estimates are incorrect.",
+       x = "Time since sign up (months)", 
+       y = "Percent") +
+  theme_minimal()
+```
+
+## We encounter censored data all the time {.smaller}
+
+-   Time from disease onset to death
+-   Time from machine creation to failure
+-   Time from order to re-order
+
+If you are asking yourself, *"how long until?"* or *"has it happened yet?"* you likely have censored data.
+
+These are all examples of right censored data but there are other kinds.
+
+## Survival analyses help us address censored data
+
+Survival analysis provide techniques for us to take into account censoring in our data. Two common methods:
+
+-   Kaplan Meier Estimates to estimate survival probabilities
+-   Cox Proportional Hazards to quantify effects between one or more variables
+
+## What is the probability of renewing past a given time? {.smaller}
 
 ##### Old School: Survival Package
 
 ```{r km_base_surv}
 library(survival)
-# Kaplan Meier Estimates
 km_base_surv <- survfit(Surv(tenure, event) ~ 1, 
                       data = telco_data_clean) |> 
   broom::tidy(km)
@@ -248,7 +282,7 @@ km_base_surv <- survfit(Surv(tenure, event) ~ 1,
 km_base_surv
 ```
 
-## Kaplan Meier curve
+## Plot Kaplan Meier Estimates
 
 ```{r plot_km_base_surv}
 #| echo: false
@@ -262,17 +296,17 @@ km_base_surv %>%
   geom_line(aes(x = time, y = estimate)) +
   scale_y_continuous(labels = scales::percent) +
   scale_x_continuous(breaks = seq(0,80, by = 12)) +
-  labs(title = 'Probability of churning by months since sign up',
-       subtitle = '',
-       caption = '',
-       x = 'Months since sign up',
-       y = 'Probability') +
+  labs(title = "Probability of renewal beyond a given time",
+       subtitle = "",
+       caption = "",
+       x = "Months since sign up",
+       y = "Probability") +
     theme_minimal() +
     theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
 
-## Does probability of churning differ depending on the type of internet service? {.smaller}
+## Do the survival probabilities differ depending on the type of internet service? {.smaller}
 
 ##### Old School: Survival Package
 
@@ -309,12 +343,12 @@ km_internet_service_surv |>
     theme_minimal()
 ```
 
-## How can we quantify the difference between groups? {.smaller}
+## Does the hazard of churning differ depending on the type of internet service? {.smaller}
 
 ##### Old School: Survival Package
 
 ```{r}
-# Cox Proportional Hazards Survival Package
+# Alternative title for this slide: How can we quantify the difference between groups? {.smaller}
 cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
       data = telco_data_clean %>%
         # because the default for factor levels is alphabetical, the enabled becomes the reference group
@@ -325,7 +359,7 @@ cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
 cox_ph_internet_service_surv
 ```
 
-## Cox Proportions Hazards in TidyModels {.smaller}
+## Does the hazard of churning differ depending on the type of internet service? {.smaller}
 
 ##### New School: Censored Package
 
@@ -349,7 +383,6 @@ cox_ph_internet_service_tidy
 ##### My School: Let's play around
 
 ```{r make_km_estimates_by_hand}
-
 make_km_estimates_by_hand <- function(df, time_var, event_var){
   
   total_at_start <- df |> 
@@ -407,24 +440,26 @@ another_simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11
 make_km_estimates_by_hand(another_simple_df, time, event)
 ```
 
-## Placeholder
+## Intuition
 
-TODO: Verbally explain the math. Something like this but simpler. The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
+The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
 
-The survival probability can be estimated as the number of customers who have renewed excluding censoring at that time, divided by the number of customers who had renewed just prior to that time.
+We can estimate the survival probability the number of customers who have renewed excluding censoring at that time, divided by the number of customers who had renewed just prior to that time.
 
 The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
 
-## Placeholder
-TODO: Go back to plot comparing naive estimates vs. those from Kaplan Meier. 
-
 ## Comparing the 3 Implementations
 
-| Old School: survival package                          | New School: censored package | My School: custom function                       |
-|----------------------------|------------------|--------------------------|
-|                                                      |                              | Dear god, don't ever use this in production code |
-| Extracting predictions is a little more of a headache |                              | Helpful for giving an intuition                  |
-|                                                       |                              |                                                  |
+| Old School: survival package                            | New School: censored package                                                     | My School: custom function                       |
+|----------------------------|-------------------|--------------------------|
+| Just a few lines of code; quick and easy to get started | A little more verbose                                                            | Dear god, don't ever use this in production code |
+| Extracting predictions is a little more of a headache   | Consistency in how you specify fit, how you predict, and the object you get back | Helpful for giving an intuition                  |
+
+## Don't simply exclude censored observations
+
+TODO: Go back to plot comparing naive estimates vs. those from Kaplan Meier. Put both curves on the same plot.
+
+I hope I have convinced you of  . . . . There are options for implementing survival analysis in R.
 
 ## Special Topics
 
@@ -439,3 +474,19 @@ TODO: Go back to plot comparing naive estimates vs. those from Kaplan Meier.
 [Hannah Frick's censored - survival analysis in Tidymodels from rstudio_conf(2022)](https://www.rstudio.com/conference/2022/talks/censored-survival-analysis-in-tidymodels/)
 
 [censored - parsnip extension package](https://censored.tidymodels.org/)
+
+```{r}
+lung <- lung|> 
+  mutate(
+    status = recode(status, `1` = 0, `2` = 1)
+  )
+```
+
+```{r}
+lung |> 
+  filter(status == 1, time < 366)
+```
+
+```{r}
+1 - (121/228)
+```
