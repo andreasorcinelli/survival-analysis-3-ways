@@ -51,11 +51,12 @@ library(lubridate)
 ## TODOs {.smaller}
 
 -   [ ] Clean up dead and duplicated code
--   [ ] WTF is up with the naive estimates plot?
+-   [x] WTF is up with the naive estimates plot?
+-   [ ] Figure out speaker notes
 -   [ ] Plot naive estimates and KM curves on same plot.
--   [ ] Add ggsurvfit for making plots to refs
+-   [x] Add ggsurvfit for making plots to refs
 -   [ ] Decide: Do I want to plot hazards?
--   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that you mention this is more involved but don't show it.
+-   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that I mention this is more involved but don't show it. Alternatively, I may include the code chunk but keep it hidden so that folks could look it up on GitHub if they want. Not sure. 
 
 ## Who are you?
 
@@ -108,10 +109,11 @@ Focus on the the high-level. It's all on GitHub.
 
 ## Predicting time between sign up and churn {.smaller}
 
-Imagine you work for a communication service provider like Xfinity or Verizon. A big part of your business is going to be focused on understanding renewals.
+Imagine you work for a communication service provider like Xfinity or Waitsfield Telecom. A big part of your business is going to be focused on understanding renewals.
 
-Who keeps their contract and who **cancels their contract or churns**? Ideally, you'd like to be able to estimate a probability of renewal.
-
+Who keeps their contract and who **cancels their contract or churns**? Ideally, you'd like to be able to estimate a probability of renewal.\
+\
+\
 Data from [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) used throughout.
 
 ## Some customers signed up a long time ago; others only recently
@@ -162,7 +164,10 @@ We know Charlie and Dave's starting point - their signup date, but we have not o
 These are **censored** observations.
 
 It can be tempting to treat these observations as missing. But they're not.\
-We have partial information for Charlie and Dave and excluding them from the analysis will result in incorrect estimates of when customers churn.
+\
+We have partial information for Charlie and Dave.
+
+Excluding them from the analysis will result in incorrect estimates of when customers churn.
 
 ```{r read_data}
 #| include: false
@@ -170,72 +175,18 @@ We have partial information for Charlie and Dave and excluding them from the ana
 telco_data <- read.csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv") 
 ```
 
-```{r preprocess_time_vars}
+```{r data_cleaning}
 #| include: false
-set.seed(502)
-
-#TODO: clean this up. I don't think I even need a bunch of this anymore. 
-
-telco_data_clean <- telco_data |> 
+ telco_data_clean <- telco_data |> 
   janitor::clean_names()  |>
-  # Assuming that tenure is in months 
-  # I want to create a signup date at a finer grain than the month but I don't really have that information. 
-  # So I randomly sample days between 0 and 30. 
-  # I know I should take into account months with greater than or less than 30 days but not in scope for this talk :)
-  # This is a little strange bc it's going to artificially set the signup date to the same day each month but I don't have data at a finer grain. 
-  mutate(signup_date = today() - months(tenure), 
-         signup_day = sample(1:28, dim(telco_data)[1], replace = TRUE),
-         signup_month = if_else(month(signup_date) > 9, 
-                               as.character(month(signup_date)), 
-                               paste0("0", month(signup_date))),
-         #signup_month = ym(paste0(year(signup_date), signup_month)),
-         signup_date = ymd(paste0(year(signup_date), signup_month, signup_day)),
-         month = ymd(sprintf("%d-%0d-01",
-                             year(signup_date),
-                             month(signup_date))),
-         event = if_else(churn == "Yes", 1, 0)) |> 
-    select(customer_id, tenure, churn, event, signup_date, signup_month, month, everything())
+  mutate(event = if_else(churn == "Yes", 1, 0)) |> 
+  select(customer_id, tenure, churn, event,everything())
 ```
 
 ## We cannot simply remove censored obersevations
 
-```{r calc_naive_monthly_churn}
-#| include: false
-monthly_stats <- telco_data_clean |> 
-  count(tenure, name = "monthly_total") |> 
-  left_join(telco_data_clean |> 
-              count(tenure, event), by = "tenure") |> 
-  # add a cumulative sum of event 
-  mutate(monthly_percent = n/monthly_total, 
-         overall_total = dim(telco_data_clean)[1], 
-         overall_percent = n/overall_total) |> 
-  select(tenure, event, n, monthly_total, monthly_percent, overall_total, overall_percent)
-```
-
-```{r plot_naive_monthly_churn}
+```{r calc_naive_estimates}
 #| echo: false
-monthly_stats |> 
-  filter(event == 1, tenure != 0) |>
-  ggplot(aes(x = tenure, y = monthly_percent)) +
-  geom_line(color = "blue") +
-  #scale_x_date(name = "Signup Date") +
-  scale_y_continuous(labels = scales::percent) +
-  labs(title = "Simply removing censored observation over-estimates the survival probability.", 
-       subtitle = "These estimates are incorrect.",
-       x = "Time since sign up (months)", 
-       y = "Percent") +
-  theme_minimal()
-```
-
-## We cannot simply remove censored obersevations
-
-```{r calc_naive_monthly_churn_2}
-#| include: false
-naive_estimate <- monthly_stats |> 
-  filter(event == 1) |> 
-  mutate(running_total = cumsum(monthly_total), 
-         overall_percent = running_total/overall_total)
-
 naive_estimate <- tibble(total = nrow(telco_data_clean), 
                          telco_data_clean |> 
                            count(tenure, event, name = "monthly_total")) |> 
@@ -244,19 +195,21 @@ naive_estimate <- tibble(total = nrow(telco_data_clean),
          naive_estimate = 1 - (running_total/total))
 ```
 
-```{r plot_naive_monthly_churn_2}
+```{r plot_naive_estimates}
 #| echo: false
 naive_estimate |> 
-  #filter(tenure != 0) |>
   ggplot(aes(x = tenure, y = naive_estimate)) +
   geom_line(color = "blue") +
-  #scale_x_date(name = "Signup Date") +
+  scale_x_continuous(breaks = seq(0,80, by = 12)) +
   scale_y_continuous(labels = scales::percent) +
-  labs(title = "Simply removing censored observation over-estimates the survival probability.", 
+  labs(title = "Simply removing censored observation over-estimates the \nsurvival probability.", 
        subtitle = "These estimates are incorrect.",
        x = "Time since sign up (months)", 
        y = "Percent") +
-  theme_minimal()
+  theme_minimal() +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20, face = "bold"),
+        plot.subtitle = element_text(size = 15))
 ```
 
 ## We encounter censored data all the time {.smaller}
@@ -267,7 +220,8 @@ naive_estimate |>
 
 If you are asking yourself, *"how long until?"* or *"has it happened yet?"* you likely have censored data.
 
-These are all examples of right censored data but there are other kinds.
+\
+These are all examples of **right censored** data but there are other kinds.
 
 ## Survival analyses help us address censored data
 
@@ -306,12 +260,13 @@ km_base_surv %>%
   labs(title = "Probability of renewal beyond a given time",
        subtitle = "",
        caption = "",
-       x = "Months since sign up",
+       x = "Time since sign up (months)",
        y = "Probability") +
     theme_minimal() +
     theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
+**Interpretation:** The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
 
 ## Do the survival probabilities differ depending on the type of internet service? {.smaller}
 
@@ -345,7 +300,7 @@ km_internet_service_surv |>
   labs(title = 'Probability of churning by months and internet service type',
        subtitle = '',
        caption = '',
-       x = 'Months since sign up',
+       x = 'Time since sign up (months)',
        y = 'Probability') +
     theme_minimal()
 ```
@@ -390,6 +345,7 @@ cox_ph_internet_service_tidy
 ##### My School: Let's play around
 
 ```{r make_km_estimates_by_hand}
+#| code-line-numbers: "|3,4|6,7,8,9,10|11,12,13,14,15"
 make_km_estimates_by_hand <- function(df, time_var, event_var){
   
   total_at_start <- df |> 
@@ -447,7 +403,7 @@ another_simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11
 make_km_estimates_by_hand(another_simple_df, time, event)
 ```
 
-## Intuition
+## Recap{.smaller}
 
 The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
 
@@ -457,10 +413,10 @@ The Kaplan-Meier estimate of survival time t is the product of all the condition
 
 ## Comparing the 3 Implementations
 
-| Old School: survival package                            | New School: censored package                                                     | My School: custom function                       |
+| Old School: survival package                            | New School: censored package                                            | My School: custom function                       |
 |---------------------------|-------------------|--------------------------|
-| Just a few lines of code; quick and easy to get started | A little more verbose                                                            | Dear god, don't ever use this in production code |
-| Extracting predictions is a little more of a headache   | Consistency in how you specify fit, how you predict, and the object you get back | Helpful for giving an intuition                  |
+| Just a few lines of code; quick and easy to get started | A little more verbose initially                                         | Dear god, don't ever use this in production code |
+| Extracting predictions is more involved                 | Consistency experience fitting, predicting, and the object you get back | Helpful for giving an intuition                  |
 
 ## Don't simply exclude censored observations
 
@@ -474,13 +430,15 @@ I hope I have convinced you of . . . . There are options for implementing surviv
 -   predicting recurrent events
 -   synthesizing data
 
-## References
+## Additional Resources
 
 [Emily Zabor Survival Analysis Tutorial](https://www.emilyzabor.com/tutorials/survival_analysis_in_r_tutorial.html#Part_1:_Introduction_to_Survival_Analysis)
 
 [Hannah Frick's censored - survival analysis in Tidymodels from rstudio_conf(2022)](https://www.rstudio.com/conference/2022/talks/censored-survival-analysis-in-tidymodels/)
 
 [censored - parsnip extension package](https://censored.tidymodels.org/)
+
+[ggsurvfit package for plotting time-to-event data](http://www.danieldsjoberg.com/ggsurvfit/index.html)
 
 ```{r}
 lung <- lung|> 
@@ -496,20 +454,6 @@ lung |>
 
 ```{r}
 1 - (121/228)
-```
-
-```{r}
-naive_estimate_lung <- lung |> 
-  count(time, name = "daily_total") |> 
-  left_join(lung |> 
-              count(time, status), by = "time") |> 
-  #filter(status == 1) |> 
-  mutate(running_total = sum(n), 
-         percent_naive = running_total/total) |> 
-  arrange(time)
-
-naive_estimate_lung |> 
-  filter(time == 366)
 ```
 
 ```{r}
@@ -540,4 +484,3 @@ naive_estimate_lung |>
        y = "Percent") +
   theme_minimal()
 ```
-
