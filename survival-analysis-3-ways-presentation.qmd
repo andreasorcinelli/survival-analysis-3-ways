@@ -54,6 +54,7 @@ library(lubridate)
 -   [x] WTF is up with the naive estimates plot?
 -   [ ] Figure out speaker notes
 -   [ ] Plot naive estimates and KM curves on same plot.
+-   [ ] You can use color more effectively throughout - figure out parallel construction for color over all plots
 -   [x] Add ggsurvfit for making plots to refs
 -   [ ] Decide: Do I want to plot hazards?
 -   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that I mention this is more involved but don't show it. Alternatively, I may include the code chunk but keep it hidden so that folks could look it up on GitHub if they want. Not sure. 
@@ -267,6 +268,26 @@ km_base_surv %>%
         plot.subtitle = element_text(size = 15))
 ```
 **Interpretation:** The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
+
+## Comparing naive estimates to Kaplan Meier Estimates
+
+```{r compare_naive_to_km_estimates}
+ggplot() +
+  geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
+  geom_line(data = km_base_surv, aes(x = time, y = estimate), color = "gray") +
+  geom_line(data = naive_estimate, aes(x = tenure, y = naive_estimate), color = "blue") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks = seq(0,80, by = 12)) +
+  labs(title = "Probability of renewal beyond a given time",
+       subtitle = "",
+       caption = "",
+       x = "Time since sign up (months)",
+       y = "Probability") +
+    theme_minimal() +
+    theme(plot.title = element_text(size = 20, face = "bold"),
+        plot.subtitle = element_text(size = 15))
+```
+
 
 ## Do the survival probabilities differ depending on the type of internet service? {.smaller}
 
