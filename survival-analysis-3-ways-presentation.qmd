@@ -52,10 +52,10 @@ library(lubridate)
 
 -   [ ] Clean up dead and duplicated code
 -   [ ] WTF is up with the naive estimates plot?
--   [ ] Plot naive estimates and KM curves on same plot. 
+-   [ ] Plot naive estimates and KM curves on same plot.
 -   [ ] Add ggsurvfit for making plots to refs
 -   [ ] Decide: Do I want to plot hazards?
--   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that you mention this is more involved but don't show it. 
+-   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that you mention this is more involved but don't show it.
 
 ## Who are you?
 
@@ -235,13 +235,20 @@ naive_estimate <- monthly_stats |>
   filter(event == 1) |> 
   mutate(running_total = cumsum(monthly_total), 
          overall_percent = running_total/overall_total)
+
+naive_estimate <- tibble(total = nrow(telco_data_clean), 
+                         telco_data_clean |> 
+                           count(tenure, event, name = "monthly_total")) |> 
+  filter(event == 1) |> 
+  mutate(running_total = cumsum(monthly_total), 
+         naive_estimate = 1 - (running_total/total))
 ```
 
 ```{r plot_naive_monthly_churn_2}
 #| echo: false
 naive_estimate |> 
-  filter(tenure != 0) |>
-  ggplot(aes(x = tenure, y = 1 - overall_percent)) +
+  #filter(tenure != 0) |>
+  ggplot(aes(x = tenure, y = naive_estimate)) +
   geom_line(color = "blue") +
   #scale_x_date(name = "Signup Date") +
   scale_y_continuous(labels = scales::percent) +
@@ -451,7 +458,7 @@ The Kaplan-Meier estimate of survival time t is the product of all the condition
 ## Comparing the 3 Implementations
 
 | Old School: survival package                            | New School: censored package                                                     | My School: custom function                       |
-|----------------------------|-------------------|--------------------------|
+|---------------------------|-------------------|--------------------------|
 | Just a few lines of code; quick and easy to get started | A little more verbose                                                            | Dear god, don't ever use this in production code |
 | Extracting predictions is a little more of a headache   | Consistency in how you specify fit, how you predict, and the object you get back | Helpful for giving an intuition                  |
 
@@ -459,7 +466,7 @@ The Kaplan-Meier estimate of survival time t is the product of all the condition
 
 TODO: Go back to plot comparing naive estimates vs. those from Kaplan Meier. Put both curves on the same plot.
 
-I hope I have convinced you of  . . . . There are options for implementing survival analysis in R.
+I hope I have convinced you of . . . . There are options for implementing survival analysis in R.
 
 ## Special Topics
 
@@ -490,3 +497,47 @@ lung |>
 ```{r}
 1 - (121/228)
 ```
+
+```{r}
+naive_estimate_lung <- lung |> 
+  count(time, name = "daily_total") |> 
+  left_join(lung |> 
+              count(time, status), by = "time") |> 
+  #filter(status == 1) |> 
+  mutate(running_total = sum(n), 
+         percent_naive = running_total/total) |> 
+  arrange(time)
+
+naive_estimate_lung |> 
+  filter(time == 366)
+```
+
+```{r}
+lung |> filter(time == 11)
+```
+
+```{r}
+# cbind(lung |> 
+#   count(time, status, name = "daily_total"), nrow(lung))
+
+naive_estimate_lung <- tibble("total" = nrow(lung), lung |> 
+  count(time, status, name = "daily_total")) |> 
+  filter(status == 1) |> 
+  mutate(running_total = cumsum(daily_total), 
+                             naive_estimate = 1 - (running_total/total)) 
+```
+
+```{r}
+naive_estimate_lung |> 
+  #filter(tenure != 0) |>
+  ggplot(aes(x = time, y = naive_estimate)) +
+  geom_line(color = "blue") +
+  #scale_x_date(name = "Signup Date") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Simply removing censored observation over-estimates the survival probability.", 
+       subtitle = "These estimates are incorrect.",
+       x = "Time since sign up (months)", 
+       y = "Percent") +
+  theme_minimal()
+```
+
