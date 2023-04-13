@@ -42,7 +42,7 @@ library(lubridate)
 
 -   [x] What does each approach afford you?
 
--   [ ] Return to motivating slides with naive and km estimaes
+-   [x] Return to motivating slides with naive and km estimaes
 
 -   [x] Advanced topics
 
@@ -53,11 +53,13 @@ library(lubridate)
 -   [ ] Clean up dead and duplicated code
 -   [x] WTF is up with the naive estimates plot?
 -   [ ] Figure out speaker notes
--   [ ] Plot naive estimates and KM curves on same plot.
+-   [x] Plot naive estimates and KM curves on same plot.
+-   [ ] Add custom legend to this plot.
 -   [ ] You can use color more effectively throughout - figure out parallel construction for color over all plots
 -   [x] Add ggsurvfit for making plots to refs
+-   [ ] Sentence case or title case for titles?
 -   [ ] Decide: Do I want to plot hazards?
--   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that I mention this is more involved but don't show it. Alternatively, I may include the code chunk but keep it hidden so that folks could look it up on GitHub if they want. Not sure. 
+-   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that I mention this is more involved but don't show it. Alternatively, I may include the code chunk but keep it hidden so that folks could look it up on GitHub if they want. Not sure.
 
 ## Who are you?
 
@@ -184,7 +186,7 @@ telco_data <- read.csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
   select(customer_id, tenure, churn, event,everything())
 ```
 
-## We cannot simply remove censored obersevations
+## We cannot simply remove censored observations
 
 ```{r calc_naive_estimates}
 #| echo: false
@@ -244,7 +246,7 @@ km_base_surv <- survfit(Surv(tenure, event) ~ 1,
 km_base_surv
 ```
 
-## Plot Kaplan Meier Estimates
+## Plot Kaplan Meier Estimates {.smaller}
 
 ```{r plot_km_base_surv}
 #| echo: false
@@ -267,11 +269,13 @@ km_base_surv %>%
     theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
+
 **Interpretation:** The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
 
 ## Comparing naive estimates to Kaplan Meier Estimates
 
 ```{r compare_naive_to_km_estimates}
+#| echo: false
 ggplot() +
   geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
   geom_line(data = km_base_surv, aes(x = time, y = estimate), color = "gray") +
@@ -287,7 +291,6 @@ ggplot() +
     theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
-
 
 ## Do the survival probabilities differ depending on the type of internet service? {.smaller}
 
@@ -326,23 +329,18 @@ km_internet_service_surv |>
     theme_minimal()
 ```
 
-## Does the hazard of churning differ depending on the type of internet service? {.smaller}
+## How can we quantify the difference between groups? {.smaller}
 
 ##### Old School: Survival Package
 
-```{r}
-# Alternative title for this slide: How can we quantify the difference between groups? {.smaller}
+```{r cox_ph_internet_service_surv}
 cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
-      data = telco_data_clean %>%
-        # because the default for factor levels is alphabetical, the enabled becomes the reference group
-        # unless we reorder the levels.
-        mutate(internet_service = factor(internet_service, levels = c("Fiber optic", "DSL", "No")))) %>%
-  broom::tidy()
+      data = telco_data_clean) 
 
 cox_ph_internet_service_surv
 ```
 
-## Does the hazard of churning differ depending on the type of internet service? {.smaller}
+## How can we quantify the difference between groups? {.smaller}
 
 ##### New School: Censored Package
 
@@ -361,7 +359,25 @@ cox_ph_internet_service_tidy <- proportional_hazards()  |>
 cox_ph_internet_service_tidy
 ```
 
-## Cool but how do they work? {.smaller}
+## What *exactly* is a hazard of churning? {.smaller}
+
+**Interpretation:** We are often interested in a **hazard ratio**.
+
+A **hazard** represents the probability of churning if a customer has not churned as of time t.
+
+The **hazard ratio** therefore represents the ratio of hazards between two groups at any particular time.
+
+-   exponentiate the regression parameter β to get the hazard ratio
+
+-   HR \< 1: reduced hazard of churn
+
+-   HR \> 1: increased hazard of churn
+
+So the HR = 2.21 means that 2.21 times as many customers with Fiber Optic are churning than those with DSL at any given time. *In other words, DSL has a significantly lower hazard of churn than Fiber Optic.*
+
+And the HR = 0.40 implies that 0.40 times as many customers no internet service are churning as those with with DSL at any given time. *In other words, customers with DSL have a significantly higher hazard of churn than those with no internet service.*
+
+## Cool but how does it work? {.smaller}
 
 ##### My School: Let's play around
 
@@ -424,7 +440,7 @@ another_simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11
 make_km_estimates_by_hand(another_simple_df, time, event)
 ```
 
-## Recap{.smaller}
+## Recap {.smaller}
 
 The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
 
@@ -432,18 +448,35 @@ We can estimate the survival probability the number of customers who have renewe
 
 The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
 
-## Comparing the 3 Implementations
+## Comparing the 3 Implementations{.smaller}
 
 | Old School: survival package                            | New School: censored package                                            | My School: custom function                       |
 |---------------------------|-------------------|--------------------------|
 | Just a few lines of code; quick and easy to get started | A little more verbose initially                                         | Dear god, don't ever use this in production code |
 | Extracting predictions is more involved                 | Consistency experience fitting, predicting, and the object you get back | Helpful for giving an intuition                  |
 
-## Don't simply exclude censored observations
+## Don't simply exclude censored observations{.smaller}
 
-TODO: Go back to plot comparing naive estimates vs. those from Kaplan Meier. Put both curves on the same plot.
+```{r compare_naive_to_km_estimates_repeat}
+#| echo: false
+ggplot() +
+  geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
+  geom_line(data = km_base_surv, aes(x = time, y = estimate), color = "gray") +
+  geom_line(data = naive_estimate, aes(x = tenure, y = naive_estimate), color = "blue") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks = seq(0,80, by = 12)) +
+  labs(title = "Probability of renewal beyond a given time",
+       subtitle = "",
+       caption = "",
+       x = "Time since sign up (months)",
+       y = "Probability") +
+    theme_minimal() +
+    theme(plot.title = element_text(size = 20, face = "bold"),
+        plot.subtitle = element_text(size = 15))
+```
 
-I hope I have convinced you of . . . . There are options for implementing survival analysis in R.
+It is essential to address **censoring** when you are working with time-to-event data. **Survival analyses** are a use set of tools.  
+There are a few packages for implementing survival analysis in R.
 
 ## Special Topics
 
@@ -462,6 +495,7 @@ I hope I have convinced you of . . . . There are options for implementing surviv
 [ggsurvfit package for plotting time-to-event data](http://www.danieldsjoberg.com/ggsurvfit/index.html)
 
 ```{r}
+#| include: false
 lung <- lung|> 
   mutate(
     status = recode(status, `1` = 0, `2` = 1)
@@ -469,22 +503,23 @@ lung <- lung|>
 ```
 
 ```{r}
+#| include: false
 lung |> 
   filter(status == 1, time < 366)
 ```
 
 ```{r}
+#| include: false
 1 - (121/228)
 ```
 
 ```{r}
+#| include: false
 lung |> filter(time == 11)
 ```
 
 ```{r}
-# cbind(lung |> 
-#   count(time, status, name = "daily_total"), nrow(lung))
-
+#| include: false
 naive_estimate_lung <- tibble("total" = nrow(lung), lung |> 
   count(time, status, name = "daily_total")) |> 
   filter(status == 1) |> 
@@ -493,6 +528,7 @@ naive_estimate_lung <- tibble("total" = nrow(lung), lung |>
 ```
 
 ```{r}
+#| include: false
 naive_estimate_lung |> 
   #filter(tenure != 0) |>
   ggplot(aes(x = time, y = naive_estimate)) +
