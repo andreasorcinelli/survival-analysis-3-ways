@@ -54,13 +54,13 @@ library(lubridate)
 -   [x] WTF is up with the naive estimates plot?
 -   [ ] Figure out speaker notes
 -   [x] Plot naive estimates and KM curves on same plot.
--   [ ] Add custom legend to this plot.
+-   [x] Add custom legend to this plot.
 -   [ ] You can use color more effectively throughout - figure out parallel construction for color over all plots
 -   [x] Add ggsurvfit for making plots to refs
 -   [ ] Give slide titles and plot titles another pass
 -   [ ] The Intuition Slide needs a visual - the text at present is more like the speaker notes
--   [ ] Decide: Do I want to plot hazards?
--   [ ] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that I mention this is more involved but don't show it. Alternatively, I may include the code chunk but keep it hidden so that folks could look it up on GitHub if they want. Not sure.
+-   [x] Decide: Do I want to plot hazards?
+-   [x] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that I mention this is more involved but don't show it. Alternatively, I may include the code chunk but keep it hidden so that folks could look it up on GitHub if they want. Not sure.
 
 ## Who are you?
 
@@ -77,10 +77,9 @@ andrea |>
   work(brain_pop, warby_parker)
 ```
 
-## I'm Andrea. Hi!{.smaller}
+## I'm Andrea. Hi! {.smaller}
 
-:::: {.columns}
-
+::: columns
 ::: {.column width="60%"}
 ![](talk_images/sorcinelli_headshot.jpg)
 :::
@@ -93,8 +92,7 @@ andrea |>
   work(brain_pop, warby_parker)
 ```
 :::
-
-::::
+:::
 
 ## How I present code in talks
 
@@ -377,19 +375,57 @@ cox_ph_internet_service_tidy
 
 **Interpretation:** We are often interested in a **hazard ratio**.
 
-A **hazard** represents the probability of churning if a customer has not churned as of time t.
+A **hazard** represents the probability of churning in time t + 1 if a customer has not churned as of time t.
 
 The **hazard ratio** therefore represents the ratio of hazards between two groups at any particular time.
 
 -   exponentiate the regression parameter β to get the hazard ratio
 
--   HR \< 1: reduced hazard of churn
+-   β \< 0: HR \< 1: reduced hazard of churn
 
--   HR \> 1: increased hazard of churn
+-   β \> 0: HR \> 1: increased hazard of churn
 
-So the HR = 2.21 means that 2.21 times as many customers with Fiber Optic are churning than those with DSL at any given time. *In other words, DSL has a significantly lower hazard of churn than Fiber Optic.*
+## What *exactly* is a hazard of churning? {.smaller}
 
-And the HR = 0.40 implies that 0.40 times as many customers no internet service are churning as those with with DSL at any given time. *In other words, customers with DSL have a significantly higher hazard of churn than those with no internet service.*
+So the HR = 2.21 means that 2.21 times as many customers with Fiber Optic are churning than those with DSL at any given time. **In other words, DSL has a significantly lower hazard of churn than Fiber Optic.**
+
+And the HR = 0.40 implies that 0.40 times as many customers no internet service are churning as those with with DSL at any given time. **In other words, customers with DSL have a significantly higher hazard of churn than those with no internet service.**
+
+```{r}
+#| echo: false
+cox_ph_internet_service_tidy
+```
+
+## Plot the hazards
+
+```{r extract_hazards_and_plot}
+#| echo: false
+cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
+      data = telco_data_clean)
+
+pred_df <- cross_df(
+  list(strata = unique(telco_data_clean[!is.na(telco_data_clean[["internet_service"]]), ][["internet_service"]]),
+       tenure = 0:72,
+       event = 1)) |> 
+  rename("internet_service" = strata) |> 
+  arrange(internet_service, tenure)
+
+pred_df <- pred_df |>
+  mutate(estimate = predict(cox_ph_internet_service_surv, pred_df, type = "survival")) |>
+  rename(time = tenure)
+
+pred_df |>  
+  group_by(internet_service) |> 
+  mutate(hazard = c(NA, -diff(estimate)) / estimate) |> 
+  ungroup() |> 
+  ggplot(aes(x = time, y = hazard, color = internet_service)) +
+  geom_line() +
+  scale_x_continuous(name = "Time since sign up purchase",
+                     breaks = seq(0, 72, by = 6)) +
+  scale_y_continuous(labels = scales::percent, name = "Probability") +
+  theme_minimal()
+
+```
 
 ## Cool but how does it work? {.smaller}
 
@@ -429,6 +465,46 @@ km_base_as <- make_km_estimates_by_hand(telco_data_clean, tenure, event)
 km_base_as
 ```
 
+## Intuition {.smaller}
+
+The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
+
+We can estimate the survival probability by dividing the number of customers who have renewed excluding censoring at that time, divided by the number of customers who had renewed just prior to that time.
+
+The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
+
+## Comparing the 3 implementations {.smaller}
+
+| Old School: survival package                            | New School: censored package                                            | My School: custom function                       |
+|---------------------------|-------------------|--------------------------|
+| Just a few lines of code; quick and easy to get started | A little more verbose initially                                         | Dear god, don't ever use this in production code |
+|                                                         | Consistency experience fitting, predicting, and the object you get back | Helpful for giving an intuition                  |
+
+## Don't simply exclude censored observations {.smaller}
+
+```{r compare_naive_to_km_estimates_repeat}
+#| echo: false
+km_naive_estimates_plot
+```
+
+It is essential to address **censoring** when you are working with time-to-event data. **Survival analyses** are a use set of tools. There are a few packages for implementing survival analysis in R.
+
+## Special topics
+
+-   competing risks
+-   predicting recurrent events
+-   synthesizing data
+
+## Additional resources
+
+[Emily Zabor Survival Analysis Tutorial](https://www.emilyzabor.com/tutorials/survival_analysis_in_r_tutorial.html#Part_1:_Introduction_to_Survival_Analysis)
+
+[Hannah Frick's censored - survival analysis in Tidymodels from rstudio_conf(2022)](https://www.rstudio.com/conference/2022/talks/censored-survival-analysis-in-tidymodels/)
+
+[censored - parsnip extension package](https://censored.tidymodels.org/)
+
+[ggsurvfit package for plotting time-to-event data](http://www.danieldsjoberg.com/ggsurvfit/index.html)
+
 ```{r}
 #| include: false
 # pulled from here
@@ -453,46 +529,6 @@ another_simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11
 
 make_km_estimates_by_hand(another_simple_df, time, event)
 ```
-
-## Intuition {.smaller}
-
-The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
-
-We can estimate the survival probability the number of customers who have renewed excluding censoring at that time, divided by the number of customers who had renewed just prior to that time.
-
-The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
-
-## Comparing the 3 implementations{.smaller}
-
-| Old School: survival package                            | New School: censored package                                            | My School: custom function                       |
-|---------------------------|-------------------|--------------------------|
-| Just a few lines of code; quick and easy to get started | A little more verbose initially                                         | Dear god, don't ever use this in production code |
-| Extracting predictions is more involved                 | Consistency experience fitting, predicting, and the object you get back | Helpful for giving an intuition                  |
-
-## Don't simply exclude censored observations{.smaller}
-
-```{r compare_naive_to_km_estimates_repeat}
-#| echo: false
-km_naive_estimates_plot
-```
-
-It is essential to address **censoring** when you are working with time-to-event data. **Survival analyses** are a use set of tools. There are a few packages for implementing survival analysis in R.
-
-## Special topics
-
--   competing risks
--   predicting recurrent events
--   synthesizing data
-
-## Additional resources
-
-[Emily Zabor Survival Analysis Tutorial](https://www.emilyzabor.com/tutorials/survival_analysis_in_r_tutorial.html#Part_1:_Introduction_to_Survival_Analysis)
-
-[Hannah Frick's censored - survival analysis in Tidymodels from rstudio_conf(2022)](https://www.rstudio.com/conference/2022/talks/censored-survival-analysis-in-tidymodels/)
-
-[censored - parsnip extension package](https://censored.tidymodels.org/)
-
-[ggsurvfit package for plotting time-to-event data](http://www.danieldsjoberg.com/ggsurvfit/index.html)
 
 ```{r}
 #| include: false
