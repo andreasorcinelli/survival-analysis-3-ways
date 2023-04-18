@@ -396,7 +396,7 @@ And the HR = 0.40 implies that 0.40 times as many customers no internet service 
 cox_ph_internet_service_tidy
 ```
 
-## Plot the hazards
+## Instantaneous hazard of churning
 
 ```{r extract_hazards_and_plot}
 #| echo: false
@@ -420,13 +420,14 @@ pred_df |>
   ungroup() |> 
   ggplot(aes(x = time, y = hazard, color = internet_service)) +
   geom_line() +
-  scale_x_continuous(name = "Time since sign up purchase",
+  scale_x_continuous(name = "Time since sign up",
                      breaks = seq(0, 72, by = 6)) +
   scale_y_continuous(labels = scales::percent, name = "Probability") +
   theme_minimal()
 
 ```
 ## Cool but how does it work?
+
 ![](https://media.giphy.com/media/yj5oYHjoIwv28/giphy.gif)
 
 ## Intuition for Kaplan Meier estimator {.smaller}
