@@ -452,7 +452,7 @@ The Kaplan-Meier estimate of survival time t is the product of all the condition
 ##### My School: Let's play around
 
 ```{r make_km_estimates_by_hand}
-#| code-line-numbers: "|3,4|6,7,8,9,10|11,12,13,14,15"
+#| code-line-numbers: "|3,4|6,7,8,9,10,11|12,13,14,15,16,17,18,19"
 make_km_estimates_by_hand <- function(df, time_var, event_var){
   
   total_at_start <- df |> 
@@ -460,22 +460,27 @@ make_km_estimates_by_hand <- function(df, time_var, event_var){
   
   df |> 
     group_by({{ time_var }}) %>% 
-    summarise(n_event = sum({{ event_var }}), 
-              n_censor = sum({{ event_var }} == 0)) |> 
-    mutate(n_risk = lag(total_at_start - cumsum(n_event) - cumsum(n_censor), default = total_at_start),
-           prob_repurchase = (n_risk - n_event)/n_risk, 
-           estimate = cumprod((n_risk - n_event)/n_risk), 
-           std_error = sqrt(cumsum(n_event/(n_risk*(n_risk - n_event)))) * estimate,
-           conf_high = estimate + (1.96 * std_error), 
-           conf_low = estimate - (1.96 * std_error)) |> 
-    select("time" = {{ time_var}}, 
-           n_risk, 
-           n_event, 
-           n_censor, 
-           estimate, 
-           std_error, 
-           conf_high, 
-           conf_low)
+    summarise(
+      n_event = sum({{ event_var }}), 
+      n_censor = sum({{ event_var }} == 0)
+      ) |> 
+    mutate(
+      n_risk = lag(total_at_start - cumsum(n_event) - cumsum(n_censor), default = total_at_start),
+      prob_repurchase = (n_risk - n_event)/n_risk, 
+      estimate = cumprod((n_risk - n_event)/n_risk), 
+      std_error = sqrt(cumsum(n_event/(n_risk*(n_risk - n_event)))) * estimate,
+      conf_high = estimate + (1.96 * std_error), 
+      conf_low = estimate - (1.96 * std_error)
+      ) |> 
+    select(
+      "time" = {{ time_var}}, 
+       n_risk, 
+       n_event, 
+       n_censor, 
+       estimate, 
+       std_error, 
+       conf_high, 
+       conf_low)
 }
 ```
 
