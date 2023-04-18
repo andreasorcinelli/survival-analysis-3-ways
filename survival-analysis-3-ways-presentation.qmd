@@ -426,8 +426,28 @@ pred_df |>
   theme_minimal()
 
 ```
+## Cool but how does it work?
+![](https://media.giphy.com/media/yj5oYHjoIwv28/giphy.gif)
 
-## Cool but how does it work? {.smaller}
+## Intuition for Kaplan Meier estimator {.smaller}
+
+$$St+1 = St*((Nt+1-Dt+1)/Nt+1)$$
+
+-   Survival probability at time t is conditional probability of surviving beyond t, given survival to t - 1.
+
+-   Divide the number of customers who have renewed excluding censoring at time t by the number of customers who had renewed at time t -1.
+
+-   The Kaplan-Meier estimate of survival time t is product of all the conditional probabilities up until t.
+
+::: notes
+The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
+
+We can estimate the survival probability by dividing the number of customers who have renewed excluding censoring at that time, divided by the number of customers who had renewed just prior to that time.
+
+The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
+:::
+
+## Intuition for Kaplan Meier estimator {.smaller}
 
 ##### My School: Let's play around
 
@@ -464,14 +484,6 @@ make_km_estimates_by_hand <- function(df, time_var, event_var){
 km_base_as <- make_km_estimates_by_hand(telco_data_clean, tenure, event)
 km_base_as
 ```
-
-## Intuition {.smaller}
-
-The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
-
-We can estimate the survival probability by dividing the number of customers who have renewed excluding censoring at that time, divided by the number of customers who had renewed just prior to that time.
-
-The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
 
 ## Comparing the 3 implementations {.smaller}
 
