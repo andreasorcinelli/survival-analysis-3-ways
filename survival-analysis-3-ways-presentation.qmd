@@ -492,6 +492,7 @@ It is essential to address **censoring** when you are working with time-to-event
 
 -   competing risks
 -   predicting recurrent events
+-   interval censored data
 -   synthesizing data
 
 ## Additional resources
@@ -500,9 +501,13 @@ It is essential to address **censoring** when you are working with time-to-event
 
 [Hannah Frick's censored - survival analysis in Tidymodels from rstudio_conf(2022)](https://www.rstudio.com/conference/2022/talks/censored-survival-analysis-in-tidymodels/)
 
-[censored - parsnip extension package](https://censored.tidymodels.org/)
+[censored - parsnip extension package providing engines for censored regression and survival analysis](https://censored.tidymodels.org/)
 
-[ggsurvfit package for plotting time-to-event data](http://www.danieldsjoberg.com/ggsurvfit/index.html)
+[Red Door Analytics Survival Analysis Tutorials](https://reddooranalytics.se/resources/tutorials/)
+
+[coxed package - for simulating survival data ](https://cran.r-project.org/web/packages/coxed/vignettes/simulating_survival_data.html)
+
+[ggsurvfit package - for plotting time-to-event data including risk tables](http://www.danieldsjoberg.com/ggsurvfit/index.html)
 
 ```{r}
 #| include: false
