@@ -10,55 +10,17 @@ library(tidyverse)
 library(lubridate)
 ```
 
-## Outline {.smaller}
-
--   [x] Intro and background about me
-
--   [x] Notes about how I present
-
--   [x] There's code on the slides
-
-    -   [x] Don't worry about reading it.
-
--   [ ] Teach you how to drive the car, then show you what's under the hood.
-
--   [x] Motivating problem - censored data
-
--   [x] Where might you use this?
-
-    -   [x] Anytime you are predicting time to an event (churn, repurchase, widget failure)
-
--   [x] What is survival analysis?
-
--   [x] Kaplan Meier Estimates in Survival package
-
--   [x] Plotting Kaplan Meier curves
-
--   [x] Comparing groups using Cox Ph Survival package
-
--   [x] Tidymodels - censored - parsnip extension package
-
--   [x] Intuition for KM estimators
-
--   [x] What does each approach afford you?
-
--   [x] Return to motivating slides with naive and km estimaes
-
--   [x] Advanced topics
-
--   [x] References
-
 ## TODOs {.smaller}
 
 -   [ ] Clean up dead code - lung and simple dfs at end
 -   [x] WTF is up with the naive estimates plot?
--   [ ] Figure out speaker notes
+-   [ ] Add speaker notes
 -   [x] Plot naive estimates and KM curves on same plot.
 -   [x] Add custom legend to this plot.
--   [ ] You can use color more effectively throughout - figure out parallel construction for color over all plots
+-   [x] You can use color more effectively throughout - figure out parallel construction for color over all plots - I actually might keep color simple
 -   [x] Add ggsurvfit for making plots to refs
 -   [ ] Give slide titles and plot titles another pass
--   [ ] The Intuition Slide needs a visual - the text at present is more like the speaker notes
+-   [x] The Intuition Slide needs a visual - the text at present is more like the speaker notes
 -   [x] Decide: Do I want to plot hazards?
 -   [x] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that I mention this is more involved but don't show it. Alternatively, I may include the code chunk but keep it hidden so that folks could look it up on GitHub if they want. Not sure.
 
@@ -94,7 +56,7 @@ andrea |>
 :::
 :::
 
-## How I present code in talks
+## How I think about code in talks
 
 There is code in this talk.
 
@@ -109,7 +71,7 @@ Don't worry about the details.
 -   There are different packages for implementing survival analysis in R\
 -   An intuition for how survival analysis works
 
-## Back to how I present code in talks
+## Back to how I think about code in talks
 
 Don't worry about the details of the code.
 
@@ -173,7 +135,7 @@ These are **censored** observations.
 
 It can be tempting to treat these observations as missing. But they're not.\
 \
-We have partial information for Charlie and Dave.
+We have *partial* information for Charlie and Dave.
 
 Excluding them from the analysis will result in incorrect estimates of when customers churn.
 
@@ -236,6 +198,25 @@ Survival analysis provide techniques for us to take into account censoring in ou
 
 -   Kaplan Meier Estimates to estimate survival probabilities
 -   Cox Proportional Hazards to quantify effects between one or more variables
+
+::: notes
+I am going to focus on these because they map onto two fundamental functions of interest: 
+-   the **survival probability** or the probability that an individual survives past time t
+-   the **hazard function** or the probability that an individual experiences event during a small time interval given that the individual has survived up until the start of that interval
+:::
+
+## What does time-to-event data look like? {.smaller}
+
+All you need to get started are two variables: 
+
+-   time variable (units don't matter)
+-   event marker (1 = event observed; 0 = censored)
+
+```{r time_to_event_data}
+telco_data_clean |> 
+  select(tenure, event) |> 
+  head(10)
+```
 
 ## What is the probability of renewing past a given time? {.smaller}
 
