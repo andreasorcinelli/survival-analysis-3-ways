@@ -12,17 +12,19 @@ library(lubridate)
 
 ## TODOs {.smaller}
 
--   [ ] Clean up dead code - lung and simple dfs at end
 -   [x] WTF is up with the naive estimates plot?
--   [ ] Add speaker notes
 -   [x] Plot naive estimates and KM curves on same plot.
 -   [x] Add custom legend to this plot.
 -   [x] You can use color more effectively throughout - figure out parallel construction for color over all plots - I actually might keep color simple
 -   [x] Add ggsurvfit for making plots to refs
--   [ ] Give slide titles and plot titles another pass
+
 -   [x] The Intuition Slide needs a visual - the text at present is more like the speaker notes
 -   [x] Decide: Do I want to plot hazards?
 -   [x] Decide: Do I want to show extracting predictions from a cox surv object? It seems a little weird that I mention this is more involved but don't show it. Alternatively, I may include the code chunk but keep it hidden so that folks could look it up on GitHub if they want. Not sure.
+-   [ ] S hat
+-   [ ] Clean up dead code - lung and simple dfs at end
+-   [ ] Finish speaker notes
+-   [ ] Give slide titles and plot titles another pass
 
 ## Who are you?
 
@@ -127,6 +129,16 @@ fake_data %>%
         plot.subtitle = element_text(size = 15))
 ```
 
+::: notes
+Here's some fake data that demonstrates a common problem that arises.
+
+In the top row, we see customer Alice. Alice signed up for an account in 2019 and she cancelled or churned in 2021.
+
+And in the next row, we see Bob. And Bob signed up for an account in 2020 and cancelled or churned in 2022.
+
+And then we see Charlie in the third row. And Charlie signed up in 2021 but Charlie still has his contract. So we have not observed Charlie cancel or churn yet. The same thing for Dave in the fourth row.
+:::
+
 ## Charlie and Dave are censored {.smaller}
 
 We know Charlie and Dave's starting point - their signup date, but we have not observed their ending date - their churn date.
@@ -135,9 +147,15 @@ These are **censored** observations.
 
 It can be tempting to treat these observations as missing. But they're not.\
 \
-We have *partial* information for Charlie and Dave.
+We have **partial** information for Charlie and Dave.
 
 Excluding them from the analysis will result in incorrect estimates of when customers churn.
+
+::: notes
+This phenomenon is known as censoring. Censoring means that we know something about a individual's starting point, in this case, their sign up date but we are missing information about their ending point, their cancellation or churn date.
+
+A common response is to filter censored observations like these out. In other words to treat them as missing. But they're not missing. Indeed, we have partial infortmation for them.
+:::
 
 ```{r read_data}
 #| include: false
@@ -172,7 +190,7 @@ naive_estimate |>
   geom_line(color = "red") +
   scale_x_continuous(breaks = seq(0,80, by = 12)) +
   scale_y_continuous(labels = scales::percent) +
-  labs(title = "Simply removing censored observations over-estimates the \nsurvival probability.", 
+  labs(title = "Simply removing censored observations overestimates the \nsurvival probability.", 
        subtitle = "These estimates are incorrect.",
        x = "Time since sign up (months)", 
        y = "Percent") +
@@ -180,6 +198,16 @@ naive_estimate |>
   theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
+
+::: notes
+What happens when we filter censored observations out is that we can construct naive estimates of the survival probability. But these estimates are incorrect.
+
+This naive estimate is 1 minus the running total of individuals who have churned divided by the total n in the sample. 
+
+And this over-estimates the survival probability. 
+
+Individuals who are censored only contribute information for some of the time and then they need to fall out of the risk set. But if we ignore censoring, it treats these indivudals as part of the risk set for the entire time when they are not eligible to be. 
+:::
 
 ## We encounter censored data all the time {.smaller}
 
@@ -200,14 +228,12 @@ Survival analysis provide techniques for us to take into account censoring in ou
 -   Cox Proportional Hazards to quantify effects between one or more variables
 
 ::: notes
-I am going to focus on these because they map onto two fundamental functions of interest: 
--   the **survival probability** or the probability that an individual survives past time t
--   the **hazard function** or the probability that an individual experiences event during a small time interval given that the individual has survived up until the start of that interval
+I am going to focus on these because they map onto two fundamental functions of interest: - the **survival probability** or the probability that an individual survives past time t - the **hazard function** or the probability that an individual experiences event during a small time interval given that the individual has survived up until the start of that interval
 :::
 
 ## What does time-to-event data look like? {.smaller}
 
-All you need to get started are two variables: 
+All you need to get started are two variables:
 
 -   time variable (units don't matter)
 -   event marker (1 = event observed; 0 = censored)
@@ -407,6 +433,7 @@ pred_df |>
   theme_minimal()
 
 ```
+
 ## Cool but how does it work?
 
 ![](https://media.giphy.com/media/yj5oYHjoIwv28/giphy.gif)
@@ -505,7 +532,7 @@ It is essential to address **censoring** when you are working with time-to-event
 
 [Red Door Analytics Survival Analysis Tutorials](https://reddooranalytics.se/resources/tutorials/)
 
-[coxed package - for simulating survival data ](https://cran.r-project.org/web/packages/coxed/vignettes/simulating_survival_data.html)
+[coxed package - for simulating survival data](https://cran.r-project.org/web/packages/coxed/vignettes/simulating_survival_data.html)
 
 [ggsurvfit package - for plotting time-to-event data including risk tables](http://www.danieldsjoberg.com/ggsurvfit/index.html)
 
