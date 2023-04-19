@@ -15,9 +15,9 @@ library(lubridate)
 -   [ ] S hat LaTex formatting
 -   [ ] Add median time to churn
 -   [ ] Add motivation for censored
--   [ ] Clean up dead code - lung and simple dfs at end
+-   [x] Clean up dead code - lung and simple dfs at end
 -   [ ] Finish speaker notes
--   [ ] Give slide titles and plot titles another pass
+-   [x] Give slide titles and plot titles another pass
 
 ## Who are you?
 
@@ -496,7 +496,7 @@ km_naive_estimates_plot
 
 It is essential to address **censoring** when you are working with time-to-event data. **Survival analyses** are a use set of tools. There are a few packages for implementing survival analysis in R.
 
-## Special topics
+## Special topics {.smaller}
 
 -   competing risks
     -   occurs when there are multiple possible alternative events
@@ -527,76 +527,3 @@ It is essential to address **censoring** when you are working with time-to-event
 [coxed package - for simulating survival data](https://cran.r-project.org/web/packages/coxed/vignettes/simulating_survival_data.html)
 
 [ggsurvfit package - for plotting time-to-event data including risk tables](http://www.danieldsjoberg.com/ggsurvfit/index.html)
-
-```{r}
-#| include: false
-# pulled from here
-# https://sphweb.bumc.bu.edu/otlt/mph-modules/bs/bs704_survival/bs704_survival4.html#:~:text=With%20the%20Kaplan%2DMeier%20approach,the%20actuarial%20life%20table%20approach.
-# I don't agree that there are 20 observations at risk at start
-# I see 18
-
-simple_df <- tibble(time = c(0,1,2,3,5,6,9,10,11,12,13,14,17,18,19,21,23,24), 
-                   event= c(0,1,0,1,1,0,0,0,0,0,0,1,1,0,0,0,1,0))
-
-make_km_estimates_by_hand(simple_df, time, event) |> 
-    mutate(estimate = round(estimate,3),
-         std_error =round(std_error,3))
-```
-
-```{r}
-#| include: false
-# pulled from here
-# https://real-statistics.com/survival-analysis/kaplan-meier-procedure/confidence-interval-for-the-survival-function/
-another_simple_df <- tibble(time = c(3,5,8,10,5,5,8,12,15,14,2,11,10,9,12,5,8,11), 
-                   event = c(1,1,1,0,1,0,1,1,0,0,1,1,0,0,1,1,1,1))
-
-make_km_estimates_by_hand(another_simple_df, time, event)
-```
-
-```{r}
-#| include: false
-lung <- lung|> 
-  mutate(
-    status = recode(status, `1` = 0, `2` = 1)
-  )
-```
-
-```{r}
-#| include: false
-lung |> 
-  filter(status == 1, time < 366)
-```
-
-```{r}
-#| include: false
-1 - (121/228)
-```
-
-```{r}
-#| include: false
-lung |> filter(time == 11)
-```
-
-```{r}
-#| include: false
-naive_estimate_lung <- tibble("total" = nrow(lung), lung |> 
-  count(time, status, name = "daily_total")) |> 
-  filter(status == 1) |> 
-  mutate(running_total = cumsum(daily_total), 
-                             naive_estimate = 1 - (running_total/total)) 
-```
-
-```{r}
-#| include: false
-naive_estimate_lung |> 
-  #filter(tenure != 0) |>
-  ggplot(aes(x = time, y = naive_estimate)) +
-  geom_line(color = "blue") +
-  #scale_x_date(name = "Signup Date") +
-  scale_y_continuous(labels = scales::percent) +
-  labs(title = "Simply removing censored observation over-estimates the survival probability.", 
-       subtitle = "These estimates are incorrect.",
-       x = "Time since sign up (months)", 
-       y = "Percent") +
-  theme_minimal()
-```
