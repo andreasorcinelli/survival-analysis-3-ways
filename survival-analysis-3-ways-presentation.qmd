@@ -11,6 +11,7 @@ library(lubridate)
 ```
 
 ## TODOs {.smaller}
+
 -   [ ] S hat LaTex formatting
 -   [ ] Clean up dead code - lung and simple dfs at end
 -   [ ] Finish speaker notes
@@ -181,11 +182,11 @@ naive_estimate |>
 ::: notes
 What happens when we filter censored observations out is that we can construct naive estimates of the survival probability. But these estimates are incorrect.
 
-This naive estimate is 1 minus the running total of individuals who have churned divided by the total n in the sample. 
+This naive estimate is 1 minus the running total of individuals who have churned divided by the total n in the sample.
 
-And this over-estimates the survival probability. 
+And this over-estimates the survival probability.
 
-Individuals who are censored only contribute information for some of the time and then they need to fall out of the risk set. But if we ignore censoring, it treats these indivudals as part of the risk set for the entire time when they are not eligible to be. 
+Individuals who are censored only contribute information for some of the time and then they need to fall out of the risk set. But if we ignore censoring, it treats these indivudals as part of the risk set for the entire time when they are not eligible to be.
 :::
 
 ## We encounter censored data all the time {.smaller}
@@ -208,9 +209,7 @@ Survival analysis provide techniques for us to take into account censoring in ou
 -   Cox Proportional Hazards to quantify effects between one or more variables and estimate the probability that an individual experiences the event of interest during a small time interval
 
 ::: notes
-I am going to focus on these because they map onto two fundamental functions of interest: 
--   the **survival probability** or the probability that an individual survives past time t
--   the **hazard function** or the probability that an individual experiences event during a small time interval given that the individual has survived up until the start of that interval
+I am going to focus on these because they map onto two fundamental functions of interest: - the **survival probability** or the probability that an individual survives past time t - the **hazard function** or the probability that an individual experiences event during a small time interval given that the individual has survived up until the start of that interval
 :::
 
 ## What does time-to-event data look like? {.smaller}
@@ -219,8 +218,6 @@ All you need to get started are two variables:
 
 -   time variable (units don't matter)
 -   event marker (1 = event observed; 0 = censored)
-
-In our case, 1 = churned. 
 
 ```{r time_to_event_data}
 telco_data_clean |> 
@@ -248,11 +245,6 @@ km_base_surv
 km_base_surv %>%
   ggplot() +
   geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
-  # geom_ribbon(aes(x = time,
-  #                 ymin = conf.low,
-  #                 ymax = conf.high,
-  #                 color = "blue"),
-  #             alpha = 0.25) +
   geom_line(aes(x = time, y = estimate), color = "blue") +
   scale_y_continuous(labels = scales::percent) +
   scale_x_continuous(breaks = seq(0,80, by = 12)) +
@@ -310,7 +302,7 @@ km_internet_service_surv
 ```{r plot_km_internet_service_surv}
 #| echo: false
 km_internet_service_surv |> 
-  separate(strata, into = c("internet_service"), sep=', ') |> 
+  separate(strata, into = c("internet_service"), sep=", ") |> 
   mutate_at(c("internet_service"), ~ str_trim(str_remove(.x, '^.*='), side = "right")) |> 
   ggplot() +
   geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
@@ -322,11 +314,11 @@ km_internet_service_surv |>
   geom_line(aes(x = time, y = estimate, color = internet_service)) +
   scale_y_continuous(labels = scales::percent) +
   scale_x_continuous(breaks = seq(0,80, by = 12)) +
-  labs(title = 'Probability of survival by internet service type',
-       subtitle = '',
-       caption = '',
-       x = 'Time since sign up (months)',
-       y = 'Probability') +
+  labs(title = "Probability of survival by internet service type",
+       subtitle = "",
+       caption = "",
+       x = "Time since sign up (months)",
+       y = "Probability") +
     theme_minimal() +
     theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
@@ -441,10 +433,11 @@ The Kaplan-Meier estimate of survival time t is the product of all the condition
 :::
 
 ## Intuition for Kaplan Meier estimator {.smaller}
+
 ##### My School: Let's play around
 
 ```{r make_km_estimates_by_hand}
-#| code-line-numbers: "|3,4|6,7,8,9,10,11|12,13,14,15,16,17,18,19"
+#| code-line-numbers: "|3,4|6,7,8,9,10,11|12,13,14,15"
 make_km_estimates_by_hand <- function(df, time_var, event_var){
   
   total_at_start <- df |> 
@@ -477,6 +470,7 @@ make_km_estimates_by_hand <- function(df, time_var, event_var){
 ```
 
 ## Intuition for Kaplan Meier estimator {.smaller}
+
 ##### My School: What does that output look like?
 
 ```{r}
@@ -489,7 +483,7 @@ km_base_as
 | Old School: survival package                            | New School: censored package                                            | My School: custom function                       |
 |---------------------------|-------------------|--------------------------|
 | Just a few lines of code; quick and easy to get started | A little more verbose initially                                         | Dear god, don't ever use this in production code |
-|                                                         | Consistency experience fitting, predicting, and the object you get back | Helpful for giving an intuition                  |
+|                                                         | Consistenct experience fitting, predicting, and the object you get back | Helpful for giving an intuition                  |
 
 ## Don't simply exclude censored observations {.smaller}
 
@@ -503,9 +497,20 @@ It is essential to address **censoring** when you are working with time-to-event
 ## Special topics
 
 -   competing risks
+    -   occurs when there are multiple possible alternative events
+        -   death from disease
+        -   death from other causes
+        -   treatment response
 -   predicting recurrent events
+    -   occurs when events may be repeated
+        -   disease recurrence
+        -   repurchases
 -   interval censored data
+    -   occurs when we know that an event took place during an interval but not the exact time
+        -   dentistry
+        -   ophthalmology
 -   synthesizing data
+    -   method for simulating time-to-event data without specifying a particular distribution for the baseline hazard function
 
 ## Additional resources
 
