@@ -12,12 +12,8 @@ library(lubridate)
 
 ## TODOs {.smaller}
 
--   [x] S hat LaTex formatting
--   [ ] Add median time to churn
 -   [ ] Add motivation for censored
--   [x] Clean up dead code - lung and simple dfs at end
 -   [ ] Finish speaker notes
--   [x] Give slide titles and plot titles another pass
 
 ## Who are you?
 
@@ -48,6 +44,14 @@ Don't worry about the details.
 
 *Really.*
 
+::: notes
+Before we get started, I wanted to make a quick note. There is code in this talk. Don't really worry about the details. 
+
+Really. 
+
+That advice might seem a little counter-intuitive at first but . . .
+:::
+
 ## My goal is for you to leave with an understanding of
 
 -   The kinds of situations that call for survival analysis\
@@ -55,11 +59,21 @@ Don't worry about the details.
 -   There are different packages for implementing survival analysis in R\
 -   An intuition for how survival analysis works
 
+::: notes
+Here is what I want to cover today. We are going to talk about the kinds of situations that call for survival analysis and why it is important not to treat censored observations as missing. I am also going to show you a couple of different packages for implementing survival analysis in R and finally, we are going to wrap up with intuition for how survival analysis works.
+:::
+
 ## Back to how I think about code in talks
 
 Don't worry about the details of the code.
 
 Focus on the the high-level. It's all on GitHub.
+
+::: notes
+So you'll notice that nowehere on that agenda slide did it say anything about reading code line-by-line. In general, I would say focus on the high level. 
+
+There's a whopping 3 lines of code I am going to walk through in detail and everything is on GitHub. So really I would say focus on the high level and don't worry about the details.
+:::
 
 ## Predicting time between sign up and churn {.smaller}
 
@@ -69,6 +83,12 @@ Who keeps their contract and who **cancels their contract or churns**? Ideally, 
 \
 \
 Data from [Kaggle](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) used throughout.
+
+::: notes
+Read. 
+
+I am going to be using a dataset from Kaggle throughout but before we get into that dataset I'm going to show you some fake data that illustrate a common problem that arises. 
+:::
 
 ## Some customers signed up a long time ago; others only recently
 
@@ -112,13 +132,15 @@ fake_data %>%
 ```
 
 ::: notes
-Here's some fake data that demonstrates a common problem that arises.
+So here I am plotting customer's sign up and churn dates. Sign ups are indicated with blue dots are indicated with blue dots and churn with red. 
 
 In the top row, we see customer Alice. Alice signed up for an account in 2019 and she cancelled or churned in 2021.
 
-And in the next row, we see Bob. And Bob signed up for an account in 2020 and cancelled or churned in 2022.
+And in the next row, we see Bob. And Bob signed up 2020 and cancelled or churned in 2022.
 
-And then we see Charlie in the third row. And Charlie signed up in 2021 but Charlie still has his contract. So we have not observed Charlie cancel or churn yet. The same thing for Dave in the fourth row.
+And then we see Charlie in the third row. And Charlie signed up in 2021 but Charlie still has his contract. So we have not observed Charlie cancel or churn yet. 
+
+The same thing for Dave in the fourth row.
 :::
 
 ## Charlie and Dave are censored {.smaller}
@@ -134,7 +156,9 @@ We have **partial** information for Charlie and Dave.
 Excluding them from the analysis will result in incorrect estimates of when customers churn.
 
 ::: notes
-This phenomenon is known as censoring. Censoring means that we know something about a individual's starting point, in this case, their sign up date but we are missing information about their ending point, their cancellation or churn date.
+Charlie and Dave are examples of censored observations. 
+
+Censoring means that we know something about a individual's starting point, in this case, their sign up date but we are missing information about their ending point, their cancellation or churn date.
 
 A common response is to filter censored observations like these out. In other words to treat them as missing. But they're not missing. Indeed, we have partial infortmation for them.
 :::
@@ -153,7 +177,7 @@ telco_data <- read.csv("data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
   select(customer_id, tenure, churn, event,everything())
 ```
 
-## We cannot simply remove censored observations
+## We cannot simply remove censored observations {.smaller}
 
 ```{r calc_naive_estimates}
 #| echo: false
@@ -181,14 +205,26 @@ naive_estimate |>
         plot.subtitle = element_text(size = 15))
 ```
 
+```{r naive_estimates_demo}
+#| eval: false
+tibble(total = nrow(telco_data_clean), 
+       telco_data_clean |> 
+         count(tenure, event, name = "monthly_total")) |> 
+  filter(event == 1) |> 
+  mutate(running_total = cumsum(monthly_total), 
+         naive_estimate = 1 - (running_total/total))
+```
+
 ::: notes
-What happens when we filter censored observations out is that we can construct naive estimates of the survival probability. But these estimates are incorrect.
+What happens when we filter censored observations out is that we can construct naive estimates of the survival probability, or the probability that someone will remain a customer. But these estimates are incorrect.
 
-This naive estimate is 1 minus the running total of individuals who have churned divided by the total n in the sample.
+This naive estimate is 1 minus the running total of individuals who have churned divided by the total n in the sample. And this over-estimates the survival probability.
 
-And this over-estimates the survival probability.
+And this is a common pitfall. 
 
-Individuals who are censored only contribute information for some of the time and then they need to fall out of the risk set. But if we ignore censoring, it treats these indivudals as part of the risk set for the entire time when they are not eligible to be.
+Individuals who are censored only contribute information for some of the time and then they need to fall out of the risk set. In other words, they need to fall out of the denominator.
+
+But if we ignore censoring, it treats these individuals as part of the risk set for the entire time when they are not eligible to be.
 :::
 
 ## We encounter censored data all the time {.smaller}
@@ -203,6 +239,12 @@ If you are asking yourself, *"how long until?"* or *"has it happened yet?"* you 
 \
 These are all examples of **right censored** data but there are other kinds.
 
+::: notes
+We encounter censored data all the time. 
+
+The hallmark example and what the literature is named after is predicting time from disease onset to death. But other examples are time from machine creation or widgit creation to failure, time from a customer's first order to their second order, and as we see today time from sign up to churn.
+::: 
+
 ## Survival analyses help us address censored data
 
 Survival analysis provide techniques for us to take into account censoring in our data. Two common methods:
@@ -210,8 +252,16 @@ Survival analysis provide techniques for us to take into account censoring in ou
 -   Kaplan Meier Estimates to estimate survival probabilities
 -   Cox Proportional Hazards to quantify effects between one or more variables and estimate the probability that an individual experiences the event of interest during a small time interval
 
-::: notes
-I am going to focus on these because they map onto two fundamental functions of interest: - the **survival probability** or the probability that an individual survives past time t - the **hazard function** or the probability that an individual experiences event during a small time interval given that the individual has survived up until the start of that interval
+:::notes
+Survival analysis provide techniques for us to take into account censoring in our data. Two I am going to focus on two common methods today Kaplan Meier Estimates to estimate survival probabilities and Cox Proportional Hazards to quantify effects between one or more variables and estimate the probability that an individual experiences the event of interest during a small time interval. 
+
+I am going to focus on these because they map onto two fundamental functions of interest: 
+
+The **survival probability** or the probability that an individual survives past time t 
+
+And the **hazard function** or the probability that an individual experiences event during a small time interval 
+
+These are both conditional on the individual surviving up until time t
 :::
 
 ## What does time-to-event data look like? {.smaller}
@@ -227,6 +277,10 @@ telco_data_clean |>
   head(10)
 ```
 
+:::notes 
+So what does time to event data look like? At it's core, all you need are two variables. You need a time variable and you need an event marker. So in this dataset, our time variable is named tenure and it is time months. As an aside, the units don't matter. And our event marker is the event variable where 1 is coded as the event being observed and 0 is is coded as censored, so no event. 
+:::
+
 ## What is the probability of surviving past a given time? {.smaller}
 
 ##### Old School: survival package
@@ -239,6 +293,16 @@ km_base_surv <- survfit(Surv(tenure, event) ~ 1,
 
 km_base_surv
 ```
+
+:::notes
+The first thing we can do is generate the overall survival curve for the entire cohort. 
+
+I am using the survival package to do this. This is a pretty standard way to do this. This is the old school way to do this. So you can see that after just a few lines of code, we have survival probabilities. 
+
+These represent conditional probability of surviving beyond time t, given that an individual has survived to time t - 1. 
+
+So we would interpret these as 92.8 percent of customers will survive beyond month 2, given that that they survived to month 1.  
+:::
 
 ## What is the probability of surviving past a given time? {.smaller}
 
@@ -261,6 +325,16 @@ km_base_surv %>%
 ```
 
 **Interpretation:** The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
+
+:::notes
+The next thing we would typically do is plot the Kaplan Meier curve. 
+
+So again these are interpretted as the conditional probability of surviving beyond time t, given that an individual has survived to time t - 1.
+
+About 70% of customers will survive past 4 years conditional that they had survived to 3 years and 11 months. 
+
+Optional: This is a Kaplan-Meier curve and I would say it's the most common way to estimate survival times and probabilities. It non-parametric so it doesn't make any assumptions about the underlying distribution and it results in a step function, where there is a step down each time an event occurs.
+:::
 
 ## Comparing Kaplan Meier to naive estimates
 
@@ -287,6 +361,10 @@ km_naive_estimates_plot <- ggplot() +
 km_naive_estimates_plot
 ```
 
+::: notes
+You can see here that if we compare the survival probabilities provided by the Kaplan Meier estimates to our naive estimates, our naive estimates over-estimates the survival probability. We are going to dig into the math of how this works in a bit but for now the takeaway is that we have to address censored observations in time-to-event data and we cannot just filter them out. 
+:::
+
 ## Do survival probabilities differ depending on the type of internet service? {.smaller}
 
 ##### Old School: survival package
@@ -298,6 +376,12 @@ km_internet_service_surv <- survfit(Surv(tenure, event) ~ internet_service,
 
 km_internet_service_surv
 ```
+
+:::notes
+Another thing we can do is we can stratify our estimates by variables of interest. So there is a variable in here called internet service and this tells us the type of interest service customers have or if they don't have internet service at all and maybe I have a sense that the survival probabilities differ by what type of internet service customers have. 
+
+So again I am using the survival package or the old school way of doing this and compared to the previous this was just a one line change of code. I am swapping out internet service in the formula call. 
+:::
 
 ## Do survival probabilities differ depending on the type of internet service?
 
@@ -325,6 +409,10 @@ km_internet_service_surv |>
     theme(plot.title = element_text(size = 20, face = "bold"),
         plot.subtitle = element_text(size = 15))
 ```
+
+:::notes
+When we plot those Kaplan Meier estimates stratified by internet service type 
+:::
 
 ## How can we quantify the difference between groups? {.smaller}
 
@@ -453,7 +541,7 @@ make_km_estimates_by_hand <- function(df, time_var, event_var){
       ) |> 
     mutate(
       n_risk = lag(total_at_start - cumsum(n_event) - cumsum(n_censor), default = total_at_start),
-      prob_repurchase = (n_risk - n_event)/n_risk, 
+      surv_prob = (n_risk - n_event)/n_risk, 
       estimate = cumprod((n_risk - n_event)/n_risk), 
       std_error = sqrt(cumsum(n_event/(n_risk*(n_risk - n_event)))) * estimate,
       conf_high = estimate + (1.96 * std_error), 
@@ -464,12 +552,21 @@ make_km_estimates_by_hand <- function(df, time_var, event_var){
        n_risk, 
        n_event, 
        n_censor, 
+       surv_prob,
        estimate, 
        std_error, 
        conf_high, 
        conf_low)
 }
 ```
+
+::: notes
+We start by calculating the total number of customers in the sample. This is the total at start. 
+
+Then we 
+
+Iteratively updating the risk set. 
+:::
 
 ## Intuition for Kaplan Meier estimator {.smaller}
 
