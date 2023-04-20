@@ -155,7 +155,9 @@ Charlie and Dave are examples of censored observations.
 
 Censoring means that we know something about a individual's starting point, in this case, their sign up date but we are missing information about their ending point, their cancellation or churn date.
 
-A common response is to filter censored observations like these out. In other words to treat them as missing. But they're not missing. Indeed, we have partial infortmation for them.
+A common response is to filter censored observations like these out. In other words to treat them as missing. But they're not missing. Indeed, we have partial information for them.
+
+But simply them from the analysis will result in incorrect estimates.
 :::
 
 ```{r read_data}
@@ -217,7 +219,7 @@ This naive estimate is 1 minus the running total of individuals who have churned
 
 And this is a common pitfall. 
 
-Individuals who are censored only contribute information for some of the time and then they need to fall out of the risk set. In other words, they need to fall out of the denominator.
+This is a problem because individuals who are censored only contribute information for some of the time and then they need to fall out of the risk set. In other words, they need to fall out of the denominator.
 
 But if we ignore censoring, it treats these individuals as part of the risk set for the entire time when they are not eligible to be.
 :::
@@ -238,18 +240,27 @@ These are all examples of **right censored** data but there are other kinds.
 We encounter censored data all the time. 
 
 The hallmark example and what the literature is named after is predicting time from disease onset to death. But other examples are time from machine creation or widgit creation to failure, time from a customer's first order to their second order, and as we see today time from sign up to churn.
+
+If you find yourself asking, *"how long until?"* or *"has it happened yet?"* you are probably dealing with censored data.
+
+These are all examples of **right censored** data but there are other kinds.
 ::: 
 
 ## Survival analyses help us address censored data
 
 Survival analysis provide techniques for us to take into account censoring in our data. Two common methods:
 
--   Kaplan Meier Estimates to estimate survival probabilities
+-   Kaplan-Meier Estimates to estimate survival probabilities
 -   Cox Proportional Hazards to quantify effects between one or more variables and estimate the probability that an individual experiences the event of interest during a small time interval
 
 :::notes
-Survival analysis provide techniques for us to take into account censoring in our data. Two I am going to focus on two common methods today Kaplan Meier Estimates to estimate survival probabilities and Cox Proportional Hazards to quantify effects between one or more variables and estimate the probability that an individual experiences the event of interest during a small time interval. 
+Survival analysis provide techniques for us to take into account censoring in our data. 
 
+I am going to focus on two common methods today: Kaplan-Meier Estimates and Cox Proportional Hazards. 
+
+Kaplan-Meier curves are used estimate survival probabilities and Cox Proportional Hazards to quantify effects between one or more variables and estimate the probability that an individual experiences the event of interest during a small time interval. 
+
+Optional: 
 I am going to focus on these because they map onto two fundamental functions of interest: 
 
 The **survival probability** or the probability that an individual survives past time t 
@@ -273,7 +284,11 @@ telco_data_clean |>
 ```
 
 :::notes 
-So what does time to event data look like? At it's core, all you need are two variables. You need a time variable and you need an event marker. So in this dataset, our time variable is named tenure and it is time months. As an aside, the units don't matter. And our event marker is the event variable where 1 is coded as the event being observed and 0 is is coded as censored, so no event. 
+So what does time to event data look like? 
+
+At it's core, all you need are two variables. You need a time variable and you need an event marker. So in this dataset, our time variable is named tenure and it is time months. As an aside, the units don't matter. 
+
+Our event marker is the event variable where 1 is coded as the event being observed and 0 is is coded as censored, so no event. 
 :::
 
 ## What is the probability of surviving past a given time? {.smaller}
@@ -290,7 +305,7 @@ km_base_surv
 ```
 
 :::notes
-The first thing we can do is generate the overall survival curve for the entire cohort. 
+Given just these two variables, the first thing we can do is generate the overall survival curve for the entire cohort. 
 
 I am using the survival package to do this. This is a pretty standard way to do this. This is the old school way to do this. So you can see that after just a few lines of code, we have survival probabilities. 
 
@@ -357,7 +372,10 @@ km_naive_estimates_plot
 ```
 
 ::: notes
-You can see here that if we compare the survival probabilities provided by the Kaplan Meier estimates to our naive estimates, our naive estimates over-estimates the survival probability. We are going to dig into the math of how this works in a bit but for now the takeaway is that we have to address censored observations in time-to-event data and we cannot just filter them out. 
+You can see here that if we compare the survival probabilities provided by the Kaplan Meier estimates to our naive estimates, our naive estimates over-estimates the survival probability. 
+
+
+In a moment, we are going to dig into the math of how this works but for now the takeaway is that we have to address censored observations in time-to-event data and we cannot just treat them as missing. 
 :::
 
 ## Do survival probabilities differ depending on the type of internet service? {.smaller}
@@ -373,7 +391,9 @@ km_internet_service_surv
 ```
 
 :::notes
-Another thing we can do is we can stratify our estimates by variables of interest. So there is a variable in here called internet service and this tells us the type of interest service customers have or if they don't have internet service at all and maybe I have a sense that the survival probabilities differ by what type of internet service customers have. 
+Another thing we can do is we can stratify our estimates by variables of interest. 
+
+There is a variable in here called internet service and this tells us the type of interest service customers have or if they don't have internet service at all and maybe I have a sense that the survival probabilities differ by what type of internet service customers have. 
 
 So again I am using the survival package or the old school way of doing this and compared to the previous this was just a one line change of code. I am swapping out internet service in the formula call. 
 :::
@@ -408,7 +428,11 @@ km_internet_service_surv |>
 :::notes
 When we plot those Kaplan-Meier estimates stratified by internet service type we can see that Fiber Optic has the lowest survival probability, DSL is in the middle, and folks who don't have internet service have the highest survival probability. 
 
-This was a little surprising to me at first but maybe this actually makes sense. So folks who are in this internet service is "no" group only have phone service. And you can imagine scenarios wherein if you move, maybe internet from that provider is not available in your new location but you can probably take your phone service with you. So what this is telling me is that folks who have phone service with this provider are more likely to remain customers than folks who have DSL or Fiber Optic internet.   
+This was a little surprising to me at first but maybe this actually makes sense. So folks who are in this internet service is "no" group only have phone service. And you can imagine scenarios wherein if you move, maybe internet from that provider is not available in your new location but you can probably take your phone service with you. 
+
+So what this is telling me is that folks who don't have an internet service with this provider are more likely to remain customers than folks who have DSL or Fiber Optic internet.  
+
+And I am basing that impression on the height of the curves. 
 :::
 
 ## How can we quantify the difference between groups? {.smaller}
@@ -423,7 +447,7 @@ cox_ph_internet_service_surv
 ```
 
 :::notes
-Ok so based on the Kaplan Meier curves, we can see that the survival probabilities differ by internet service type. What if we wanted to quantify that difference?
+But what if we wanted to quantify that difference?
 
 Here I am showing you a call for a Cox Proportional Hazards which is a semi-parametric method. I want to draw your attention to couple of things. 
 
@@ -441,6 +465,10 @@ Multiplicative relationship between the predictors and the hazard.
 Constant hazard ratio over time.
 
 Non-parametric meaning it makes a parametric assumption concerning the effect of the predictors on the hazard function, but makes no assumption regarding the nature of the hazard function.
+
+Assumes a relationship between the hazards so can extrapolate the survival out to any time.
+
+Does not assume an underlying probability distribution but it assumes the hazards of the groups are constant over time.
 :::
 
 ## How can we quantify the difference between groups? {.smaller}
@@ -560,21 +588,31 @@ pred_df |>
   scale_x_continuous(name = "Time since sign up",
                      breaks = seq(0, 72, by = 6)) +
   scale_y_continuous(labels = scales::percent, name = "Probability") +
-  theme_minimal()
+  labs(title = "Hazard of churning in next instant (time t + 1)") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20, face = "bold"),
+        plot.subtitle = element_text(size = 15))
 
 ```
 
 :::notes
-One of the other interesting things we can do is take a look at the hazards or the probability of churning in the next instant. So this is the probability of churning in time t + 1 given that a customer has not churned as of time t.
+One of the other interesting things we can do is take a look at the hazards or the probability of churning in the next instant. 
+
+So this is the probability of churning in time t + 1 given that a customer has not churned as of time t.
 
 We can notice a couple of things. So first the order of the curves is going to be flipped relative to the Kaplan Meier curves and that intuitively maps onto what we learned about the hazard ratios. 
 
 Fiber Optic has a higher hazard ratio relative to DSL at any given time and DSL has a higher hazard ratio than no internet service at any given time. 
+
 :::
 
 ## Cool but how does it work?
 
 ![](https://media.giphy.com/media/yj5oYHjoIwv28/giphy.gif)
+
+:::notes
+So you might be saying to yourself, alright Andrea, cool. You've showed some syntax and we've reviewed some interpretations but how does it work? So next we are going to build an intuition for how the Kaplan-Meier estimates work.  
+:::
 
 ## Intuition for Kaplan-Meier estimator {.smaller}
 
@@ -587,7 +625,9 @@ $$\widehat{S}(t)∏_{i: t_{i}≤t}\left(1 - \frac{d_{i}}{n_{i}}\right)$$
 -   The Kaplan-Meier estimate of survival time t is product of all the conditional probabilities up until t.
 
 ::: notes
-We can estimate the survival probability by dividing the number of customers who have survived excluding censoring at that time, divided by the number of customers who had survived just prior to that time.
+Recall the key thing we need to do is understand what the risk set is at each point in time. If you have already churned in month 3, you are not at risk to churn in month 12. So you need to be removed from the risk set.
+
+We are going to estimate survival probability by dividing the number of customers who have survived excluding censoring at that time, divided by the number of customers who had survived just prior to that time.
 
 The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
 :::
@@ -631,15 +671,15 @@ make_km_estimates_by_hand <- function(df, time_var, event_var){
 ```
 
 ::: notes
-Recall the key thing we need to do is understand what the risk set is at each point in time. If you have already churned in month 3, you are not at risk to churn in month 36. So you need to be removed from the risk set. 
+So how are we going to do this? 
 
-So how are we going to do this? Here is a function that I have written to break this down step by step. You'll notice this function takes 3 arguments a dataframe, a time variable, and an event variable. 
+Here is a function that I have written to break this down step by step. You'll notice this function takes 3 arguments a dataframe, a time variable, and an event variable. 
 
 ANIMATE
 We start by calculating the total number in the risk set at the start. This is the total number of customers in the sample, which I am assigning to total at start.  
 
 ANIMATE
-Next we are going to group by our unit of time, which in this case is month, and sum up how many customers had the event of interest, i.e. how mnay churned and how many were censored. We are going to use these later to update our risk set.    
+Next we are going to group by our unit of time, which in this case is month, and sum up how many customers had the event of interest, i.e. how many churned and how many were censored. We are going to use these later to update our risk set.    
 
 ANIMATE
 So remember how I said there were 3 lines of code that were really fundamental to what we are talking about? These are those them. 
