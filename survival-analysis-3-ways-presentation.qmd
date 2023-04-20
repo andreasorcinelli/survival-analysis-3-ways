@@ -498,21 +498,17 @@ It is essential to address **censoring** when you are working with time-to-event
 
 ## Special topics {.smaller}
 
--   competing risks
-    -   occurs when there are multiple possible alternative events
-        -   death from disease
-        -   death from other causes
-        -   treatment response
--   predicting recurrent events
-    -   occurs when events may be repeated
-        -   disease recurrence
-        -   repurchases
--   interval censored data
-    -   occurs when we know that an event took place during an interval but not the exact time
-        -   dentistry
-        -   ophthalmology
--   synthesizing data
-    -   method for simulating time-to-event data without specifying a particular distribution for the baseline hazard function
+-   **competing risks** - occurs when there are multiple possible alternative events
+    -   death from disease
+    -   death from other causes
+    -   treatment response
+-   **predicting recurrent events** - occurs when events may be repeated
+    -   disease recurrence
+    -   repurchases
+-   **interval censored data** - occurs when we know that an event took place during an interval but not the exact time
+    -   dentistry
+    -   ophthalmology
+-   **synthesizing data** - method for simulating time-to-event data without specifying a particular distribution for the baseline hazard function
 
 ## Additional resources
 
