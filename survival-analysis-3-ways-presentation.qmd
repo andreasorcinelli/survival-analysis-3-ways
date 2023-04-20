@@ -10,11 +10,6 @@ library(tidyverse)
 library(lubridate)
 ```
 
-## TODOs {.smaller}
-
--   [ ] Add motivation for censored
--   [ ] Finish speaker notes
-
 ## Who are you?
 
 ![](https://media.giphy.com/media/3ohs4lOlH8GhRtb6QU/giphy.gif)
@@ -327,7 +322,7 @@ km_base_surv %>%
 **Interpretation:** The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
 
 :::notes
-The next thing we would typically do is plot the Kaplan Meier curve. 
+The next thing we would typically do is plot the Kaplan-Meier curve. 
 
 So again these are interpretted as the conditional probability of surviving beyond time t, given that an individual has survived to time t - 1.
 
@@ -336,19 +331,19 @@ About 70% of customers will survive past 4 years conditional that they had survi
 Optional: This is a Kaplan-Meier curve and I would say it's the most common way to estimate survival times and probabilities. It non-parametric so it doesn't make any assumptions about the underlying distribution and it results in a step function, where there is a step down each time an event occurs.
 :::
 
-## Comparing Kaplan Meier to naive estimates
+## Comparing Kaplan-Meier to naive estimates
 
 ```{r compare_naive_to_km_estimates}
 #| echo: false
 km_naive_estimates_plot <- ggplot() +
   geom_hline(yintercept = 0.5, color = "gray", lwd = 0.5) +
-  geom_line(data = km_base_surv, aes(x = time, y = estimate, color="Kaplan Meier")) +
+  geom_line(data = km_base_surv, aes(x = time, y = estimate, color="Kaplan-Meier")) +
   geom_line(data = naive_estimate, aes(x = tenure, y = naive_estimate, color = "Naive")) +
   scale_y_continuous(labels = scales::percent) +
   scale_x_continuous(breaks = seq(0,80, by = 12)) +
   scale_color_manual(name="Estimate Type",
-                     breaks=c("Kaplan Meier", "Naive"),
-                     values=c("Kaplan Meier" = "blue", "Naive"="red")) +
+                     breaks=c("Kaplan-Meier", "Naive"),
+                     values=c("Kaplan-Meier" = "blue", "Naive"="red")) +
   labs(title = "Probability of survival beyond a given time",
        subtitle = "",
        caption = "",
@@ -411,7 +406,9 @@ km_internet_service_surv |>
 ```
 
 :::notes
-When we plot those Kaplan Meier estimates stratified by internet service type 
+When we plot those Kaplan-Meier estimates stratified by internet service type we can see that Fiber Optic has the lowest survival probability, DSL is in the middle, and folks who don't have internet service have the highest survival probability. 
+
+This was a little surprising to me at first but maybe this actually makes sense. So folks who are in this internet service is "no" group only have phone service. And you can imagine scenarios wherein if you move, maybe internet from that provider is not available in your new location but you can probably take your phone service with you. So what this is telling me is that folks who have phone service with this provider are more likely to remain customers than folks who have DSL or Fiber Optic internet.   
 :::
 
 ## How can we quantify the difference between groups? {.smaller}
@@ -424,6 +421,27 @@ cox_ph_internet_service_surv <- coxph(Surv(tenure, event) ~ internet_service,
 
 cox_ph_internet_service_surv
 ```
+
+:::notes
+Ok so based on the Kaplan Meier curves, we can see that the survival probabilities differ by internet service type. What if we wanted to quantify that difference?
+
+Here I am showing you a call for a Cox Proportional Hazards which is a semi-parametric method. I want to draw your attention to couple of things. 
+
+First, you'll notice we have coefficients for internet_service_FiberOptic and internet_service_No. We have 3 levels of internet service and if we don't specify a reference group R is going to default to alphabetical here. 
+
+So DSL is the reference group here. So this first row is showing the effect of DSL compare to Fiber Optic and the second row is showing the effect of DSL compared to No internet service. 
+
+The other thing I want to draw your attention to is that we have both a coefficient and the exponentiated coefficient in the output. We will come back to this in a moment. 
+
+Again, I am using the survival package to do this. There is absolutely nothing wrong with this implementation but there are more modern ways to execute this same thing. 
+
+Optional: Talk about assumptions. 
+Independence of survival times between distinct individuals in the sample,
+Multiplicative relationship between the predictors and the hazard.
+Constant hazard ratio over time.
+
+Non-parametric meaning it makes a parametric assumption concerning the effect of the predictors on the hazard function, but makes no assumption regarding the nature of the hazard function.
+:::
 
 ## How can we quantify the difference between groups? {.smaller}
 
@@ -443,6 +461,28 @@ cox_ph_internet_service_tidy <- proportional_hazards()  |>
 
 cox_ph_internet_service_tidy
 ```
+:::notes
+So here, I am running the exact same Cox regression but I am doing so using the censored package.
+The censored package is a parsnip extension package. 
+
+parsnip is a part of the TidyModels ecosystem. parnsip is specifically designed to standardize how you fit models. 
+
+If you use R you have probably encountered this problem that there are loads of interfaces for specifying model fit depending what package you're using.
+
+TidyModels is really seeking to solve that problem by giving R users consistency in how you fit models and make predictions as well as the object you get back.
+
+So while you might look at this implementation which does the exact same thing as the survival package and think hey that looks a little verbose, I just want to fit a regression. I would agree but I think that where TidyModels really shines is by giving you the flexibility to toggle seamlessly between different model types. 
+
+So for example, if you wanted to switch this model to a regularized version, it would be one line of code change in censored changing the engine, but if if you wanted to do the same thing outside of censored, you would use the glmnet package which doesn't have a formula interface for specifying models so that becomes much clunkier. 
+
+My heuristic is that if you just want to fit a Cox model and you are just starting to explore your data, I would start with the survival package but if you think you're going to be toggling between several different model types, then censored would be a good option to check out. 
+
+Optional: 
+survival function 
+the engine is using the survival package
+the mode is the specification - not fit yet
+
+:::
 
 ## What *exactly* is a hazard of churning? {.smaller}
 
@@ -458,16 +498,40 @@ The **hazard ratio** therefore represents the ratio of hazards between two group
 
 -   β \> 0: HR \> 1: increased hazard of churn
 
+:::notes
+Ok so we saw that the survival package and the censored package show us the same results for that Cox Proportional Hazards but how do we interpret those results? 
+
+Well are often interested in two things, the hazard and the hazard ratio. 
+
+The **hazard** represents the probability of churning in time t + 1 if a customer has not churned as of time t.
+
+And the  **hazard ratio** is the ratio of hazards between two groups at any particular time.
+
+We saw the hazard ratio in the outputs from the Cox model. Recall I mentioned we had both the coefficient and the exponentiated coefficient. The latter is the hazard ratio. 
+
+So a coefficient of less than 0, when we exponentiate it, it will be a hazard ratio of less than 1 which is interpreted as a reduced hazard of churning. 
+
+Conversely, a coefficient that greater than 0 becomes a hazard ratio that's greater than 1 which is interpreted as an increased hazard of churn.
+:::
+
 ## What *exactly* is a hazard of churning? {.smaller}
 
-So the HR = 2.21 means that 2.21 times as many customers with Fiber Optic are churning than those with DSL at any given time. **In other words, DSL has a significantly lower hazard of churn than Fiber Optic.**
+So the HR = 2.21 means that 2.21 times as many customers with Fiber Optic are churning than those with DSL at any given time. **In other words, Fiber Optic has a significantly higher hazard of churn than DSL.**
 
-And the HR = 0.40 implies that 0.40 times as many customers no internet service are churning as those with with DSL at any given time. **In other words, customers with DSL have a significantly higher hazard of churn than those with no internet service.**
+And the HR = 0.40 implies that 0.40 times as many customers no internet service are churning as those with with DSL at any given time. **In other words, customers with no internet service have a significantly lower hazard of churn than those with DSL.**
 
 ```{r}
 #| echo: false
 cox_ph_internet_service_tidy
 ```
+
+:::notes
+Going back to our example of internet service type. 
+
+The HR of 2.21 means that 2.21 times as many customers with Fiber Optic are churning than those with DSL at any given time. **In other words, Fiber Optic has a significantly higher hazard of churn than DSL.**
+
+And the HR of 0.40 implies that 0.40 times as many customers no internet service are churning as those with with DSL at any given time. **In other words, customers with no internet service have a significantly lower hazard of churn than those with DSL.**
+:::
 
 ## Instantaneous hazard of churning
 
@@ -500,11 +564,19 @@ pred_df |>
 
 ```
 
+:::notes
+One of the other interesting things we can do is take a look at the hazards or the probability of churning in the next instant. So this is the probability of churning in time t + 1 given that a customer has not churned as of time t.
+
+We can notice a couple of things. So first the order of the curves is going to be flipped relative to the Kaplan Meier curves and that intuitively maps onto what we learned about the hazard ratios. 
+
+Fiber Optic has a higher hazard ratio relative to DSL at any given time and DSL has a higher hazard ratio than no internet service at any given time. 
+:::
+
 ## Cool but how does it work?
 
 ![](https://media.giphy.com/media/yj5oYHjoIwv28/giphy.gif)
 
-## Intuition for Kaplan Meier estimator {.smaller}
+## Intuition for Kaplan-Meier estimator {.smaller}
 
 $$\widehat{S}(t)∏_{i: t_{i}≤t}\left(1 - \frac{d_{i}}{n_{i}}\right)$$
 
@@ -515,14 +587,12 @@ $$\widehat{S}(t)∏_{i: t_{i}≤t}\left(1 - \frac{d_{i}}{n_{i}}\right)$$
 -   The Kaplan-Meier estimate of survival time t is product of all the conditional probabilities up until t.
 
 ::: notes
-The survival probability at time t is the conditional probability of surviving beyond that time, given that an individual has survived to time t - 1.
-
-We can estimate the survival probability by dividing the number of customers who have renewed excluding censoring at that time, divided by the number of customers who had renewed just prior to that time.
+We can estimate the survival probability by dividing the number of customers who have survived excluding censoring at that time, divided by the number of customers who had survived just prior to that time.
 
 The Kaplan-Meier estimate of survival time t is the product of all the conditional probabilities up until time t.
 :::
 
-## Intuition for Kaplan Meier estimator {.smaller}
+## Intuition for Kaplan-Meier estimator {.smaller}
 
 ##### My School: Let's play around
 
@@ -561,11 +631,26 @@ make_km_estimates_by_hand <- function(df, time_var, event_var){
 ```
 
 ::: notes
-We start by calculating the total number of customers in the sample. This is the total at start. 
+Recall the key thing we need to do is understand what the risk set is at each point in time. If you have already churned in month 3, you are not at risk to churn in month 36. So you need to be removed from the risk set. 
 
-Then we 
+So how are we going to do this? Here is a function that I have written to break this down step by step. You'll notice this function takes 3 arguments a dataframe, a time variable, and an event variable. 
 
-Iteratively updating the risk set. 
+ANIMATE
+We start by calculating the total number in the risk set at the start. This is the total number of customers in the sample, which I am assigning to total at start.  
+
+ANIMATE
+Next we are going to group by our unit of time, which in this case is month, and sum up how many customers had the event of interest, i.e. how mnay churned and how many were censored. We are going to use these later to update our risk set.    
+
+ANIMATE
+So remember how I said there were 3 lines of code that were really fundamental to what we are talking about? These are those them. 
+
+In this mutate statement, I am taking the number of customers at start for each month subtracting the number of customers who churned or were censored each month. We are removing these observations because they are ineligible to be in the risk set going forward. If you have already churned or were censored at month 3, you are not at risk at month 12.  
+
+In this way, we are iteratively updating the risk set each month. 
+
+Next we calculate the survival probability at each time point which is the number at risk minus the number who had the event divided by the number at risk. 
+
+And then finally to calculate the conditional probability of surviving beyond time t we take the product of all those conditional probabilities and that is out Kaplan-Meier estimate. 
 :::
 
 ## Intuition for Kaplan Meier estimator {.smaller}
@@ -577,12 +662,20 @@ km_base_as <- make_km_estimates_by_hand(telco_data_clean, tenure, event)
 km_base_as
 ```
 
+:::notes
+So let's look at the output. We had 7043 customers at start. For each month, we subtract the cumulative sums of customers who either churned or were censored to iteratively update that risk set. 
+
+We divide the number at risk minus the number who had the event by the number at risk to get the conditional probabilities for each month and then we take the product of those conditional probabilities to get our Kaplan-Meier estimates. 
+
+This output is identical to that from the survival package with the exception that I am printing one extra column here for the sake of example. But this is it. We did it. 
+:::
+
 ## Comparing the 3 implementations {.smaller}
 
 | Old School: survival package                            | New School: censored package                                            | My School: custom function                       |
 |---------------------------|-------------------|--------------------------|
 | Just a few lines of code; quick and easy to get started | A little more verbose initially                                         | Dear god, don't ever use this in production code |
-|                                                         | Consistenct experience fitting, predicting, and the object you get back | Helpful for giving an intuition                  |
+|                                                         | Consistent experience fitting, predicting, and the object you get back | Helpful for giving an intuition                  |
 
 ## Don't simply exclude censored observations {.smaller}
 
